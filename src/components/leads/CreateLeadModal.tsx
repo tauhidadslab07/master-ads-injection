@@ -8,8 +8,6 @@ import {
   X, 
   AlertTriangle, 
   ExternalLink, 
-  Building2, 
-  User, 
   Mail, 
   Phone, 
   Globe, 
@@ -29,15 +27,12 @@ interface CreateLeadModalProps {
 export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalProps) {
   const { checkDuplicate, createLead, updateLead, setSelectedLead, setIsLeadDrawerOpen, currentUser } = useApp();
 
-  const [companyName, setCompanyName] = useState('');
-  const [contactName, setContactName] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
   const [email, setEmail] = useState('');
   
   // Phone & Country Code
   const [selectedCountry, setSelectedCountry] = useState<CountryCode>(COUNTRY_CODES[0]); // Default Bangladesh (+880)
   const [rawPhoneNumber, setRawPhoneNumber] = useState('');
-  
-  const [website, setWebsite] = useState('');
   const [initialNote, setInitialNote] = useState('');
   
   // Fail-Safe Lock state
@@ -79,11 +74,9 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
   // Initialize or reset form
   useEffect(() => {
     if (editLead) {
-      setCompanyName(editLead.company_name);
-      setContactName(editLead.contact_name);
+      setCompanyWebsite(editLead.website || editLead.company_name || '');
       setEmail(editLead.email || '');
       setRawPhoneNumber(editLead.phone || '');
-      setWebsite(editLead.website || '');
       setInitialNote('');
 
       if (editLead.phone) {
@@ -91,12 +84,10 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
         if (detected) setSelectedCountry(detected);
       }
     } else {
-      setCompanyName('');
-      setContactName('');
+      setCompanyWebsite('');
       setEmail('');
       setRawPhoneNumber('');
       setSelectedCountry(COUNTRY_CODES[0]); // Bangladesh (+880) default
-      setWebsite('');
       setInitialNote('');
     }
     setAllowDuplicateAnyway(false);
@@ -111,7 +102,7 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
     const timer = setTimeout(async () => {
       const phoneToCheck = fullPhoneNumber.trim();
       const emailToCheck = email.trim();
-      const companyToCheck = companyName.trim();
+      const companyToCheck = companyWebsite.trim();
 
       if (phoneToCheck || emailToCheck || companyToCheck.length >= 3) {
         setIsChecking(true);
@@ -124,7 +115,7 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
     }, 280);
 
     return () => clearTimeout(timer);
-  }, [fullPhoneNumber, email, companyName, isOpen, editLead?.id, checkDuplicate]);
+  }, [fullPhoneNumber, email, companyWebsite, isOpen, editLead?.id, checkDuplicate]);
 
   if (!isOpen) return null;
 
@@ -135,9 +126,9 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
     e.preventDefault();
     setSubmitError(null);
 
-    // Validation: Company is required
-    if (!companyName.trim()) {
-      setSubmitError('Please enter the Company / Brand Name.');
+    // Validation: Company Website is required
+    if (!companyWebsite.trim()) {
+      setSubmitError('Please enter the Company Website.');
       return;
     }
 
@@ -147,16 +138,18 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
       return;
     }
 
-    const finalContactName = contactName.trim() || 'Brand Lead';
+    const finalWebsite = companyWebsite.trim();
+    const finalCompanyName = companyWebsite.trim();
+    const finalContactName = editLead?.contact_name || 'Brand Lead';
     const finalPhone = rawPhoneNumber.trim() ? fullPhoneNumber : '';
 
     if (editLead) {
       updateLead(editLead.id, {
-        company_name: companyName.trim(),
+        company_name: finalCompanyName,
         contact_name: finalContactName,
         email: email.trim(),
         phone: finalPhone,
-        website: website.trim(),
+        website: finalWebsite,
         channel: autoChannel,
         deal_value: editLead.deal_value || 25000
       });
@@ -164,11 +157,11 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
     } else {
       const result = createLead(
         {
-          company_name: companyName.trim(),
+          company_name: finalCompanyName,
           contact_name: finalContactName,
           email: email.trim(),
           phone: finalPhone,
-          website: website.trim(),
+          website: finalWebsite,
           channel: autoChannel,
           deal_value: 25000,
           original_hunter_id: currentUser.id
@@ -200,8 +193,8 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-              <Building2 className="w-5 h-5" />
+            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+              <Globe className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base font-bold text-white tracking-wide">
@@ -230,12 +223,12 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
             </div>
           )}
 
-          {/* Company / Brand Name */}
+          {/* Company Website */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="font-semibold text-slate-300 flex items-center space-x-1.5">
-                <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                <span>Company / Brand Name *</span>
+                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Company Website *</span>
               </label>
               {duplicateResult.offendingFields.company && (
                 <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/50">
@@ -246,29 +239,14 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
             <input
               type="text"
               required
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="e.g. Nexus Athletic Wear"
+              value={companyWebsite}
+              onChange={(e) => setCompanyWebsite(e.target.value)}
+              placeholder="e.g. https://nexusathletics.com or brand.com"
               className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
                 duplicateResult.offendingFields.company
                   ? 'border-amber-500/80 ring-2 ring-amber-500/30'
-                  : 'border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+                  : 'border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
               }`}
-            />
-          </div>
-
-          {/* Contact Person Name (Optional with smart fallback) */}
-          <div>
-            <label className="font-semibold text-slate-300 flex items-center space-x-1.5 mb-1.5">
-              <User className="w-3.5 h-3.5 text-slate-400" />
-              <span>Contact Person Name (Optional)</span>
-            </label>
-            <input
-              type="text"
-              value={contactName}
-              onChange={(e) => setContactName(e.target.value)}
-              placeholder="e.g. Jessica Thorne (defaults to Brand Lead if blank)"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
             />
           </div>
 
@@ -372,21 +350,6 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
                 <span>⚡ Auto: 📧 Email Lead</span>
               </span>
             )}
-          </div>
-
-          {/* Brand Website / Meta Ad Library URL (Optional) */}
-          <div>
-            <label className="font-semibold text-slate-300 flex items-center space-x-1.5 mb-1.5">
-              <Globe className="w-3.5 h-3.5 text-slate-400" />
-              <span>Brand Website or Meta Ad Library URL (Optional)</span>
-            </label>
-            <input
-              type="url"
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              placeholder="https://nexusathletics.com or Meta Ad Library link"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 text-slate-100 placeholder-slate-500 text-xs focus:outline-none"
-            />
           </div>
 
           {/* DEDICATED NOTE / CONTEXT SECTION */}

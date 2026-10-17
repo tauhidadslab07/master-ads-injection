@@ -199,7 +199,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const phoneMatch = Boolean(sanitizedPhone && l.phone_e164 && l.phone_e164 === sanitizedPhone);
       const emailMatch = Boolean(sanitizedEmail && l.email && l.email.toLowerCase().trim() === sanitizedEmail);
-      const companyMatch = Boolean(sanitizedCompany.length >= 3 && l.company_name && l.company_name.toLowerCase().trim() === sanitizedCompany);
+      
+      const targetDomain = sanitizedCompany.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+      const companyMatch = Boolean(
+        (sanitizedCompany.length >= 3 && l.company_name && l.company_name.toLowerCase().trim() === sanitizedCompany) ||
+        (targetDomain.length >= 3 && (
+          (l.company_name && l.company_name.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') === targetDomain) ||
+          (l.website && l.website.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') === targetDomain)
+        ))
+      );
 
       if (phoneMatch || emailMatch || companyMatch) {
         const reasons: string[] = [];
@@ -212,7 +220,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           offendingFields.email = true;
         }
         if (companyMatch) {
-          reasons.push(`Company (${l.company_name})`);
+          reasons.push(`Website / Company (${l.website || l.company_name})`);
           offendingFields.company = true;
         }
 
@@ -282,7 +290,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const existingConflicts = hydratedLeads.filter(l => {
       const pMatch = Boolean(phone_e164 && l.phone_e164 && l.phone_e164 === phone_e164);
       const eMatch = Boolean(email && l.email && l.email.toLowerCase().trim() === email.toLowerCase().trim());
-      const cMatch = Boolean(company.length >= 3 && l.company_name && l.company_name.toLowerCase().trim() === company.toLowerCase().trim());
+      const targetDomain = company.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+      const cMatch = Boolean(
+        (company.length >= 3 && l.company_name && l.company_name.toLowerCase().trim() === company.toLowerCase().trim()) ||
+        (targetDomain.length >= 3 && (
+          (l.company_name && l.company_name.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') === targetDomain) ||
+          (l.website && l.website.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '') === targetDomain)
+        ))
+      );
       return pMatch || eMatch || cMatch;
     });
 
