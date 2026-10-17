@@ -1,10 +1,21 @@
 -- =========================================================================
 -- MASTER ADS INJECTION - ENTERPRISE CRM & OUTREACH OPERATIONS ENGINE
--- PRODUCTION SUPABASE SCHEMA, CONSTRAINTS, RPCs & SEED DATA
+-- PRODUCTION SUPABASE SCHEMA, CONSTRAINTS, RPCs & CLEAN MIGRATION
 -- =========================================================================
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Drop legacy conflicting tables and types if they existed from older tests
+DROP TABLE IF EXISTS member_activity_mistakes CASCADE;
+DROP TABLE IF EXISTS lead_activities CASCADE;
+DROP TABLE IF EXISTS leads CASCADE;
+DROP TABLE IF EXISTS team_members CASCADE;
+
+DROP TYPE IF EXISTS team_role CASCADE;
+DROP TYPE IF EXISTS lead_stage CASCADE;
+DROP TYPE IF EXISTS outreach_channel CASCADE;
+DROP TYPE IF EXISTS client_reaction CASCADE;
 
 -- 1. ENUMS
 CREATE TYPE team_role AS ENUM (
@@ -47,7 +58,7 @@ CREATE TYPE client_reaction AS ENUM (
 );
 
 -- 2. TEAM MEMBERS TABLE
-CREATE TABLE IF NOT EXISTS team_members (
+CREATE TABLE team_members (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   full_name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
@@ -62,7 +73,7 @@ CREATE TABLE IF NOT EXISTS team_members (
 );
 
 -- 3. LEADS TABLE
-CREATE TABLE IF NOT EXISTS leads (
+CREATE TABLE leads (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_name TEXT NOT NULL,
   contact_name TEXT NOT NULL,
@@ -84,10 +95,10 @@ CREATE TABLE IF NOT EXISTS leads (
   approved_by UUID REFERENCES team_members(id),
   
   -- Cadence Engine & Recycle
-  cadence_step INTEGER NOT NULL DEFAULT 0, -- 0: Day 0, 1: Day 2, 2: Day 5, 3: Day 9, 4: Day 14
+  cadence_step INTEGER NOT NULL DEFAULT 0,
   cadence_last_step_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
   last_client_reaction client_reaction NOT NULL DEFAULT 'unseen',
-  recycled_count INTEGER NOT NULL DEFAULT 0, -- allowed max 1 recycle cycle
+  recycled_count INTEGER NOT NULL DEFAULT 0,
   
   -- Safety & Hard Lock
   is_dnc BOOLEAN NOT NULL DEFAULT false,
@@ -100,40 +111,50 @@ CREATE TABLE IF NOT EXISTS leads (
 );
 
 -- Indexes for performance & deduplication
-CREATE INDEX IF NOT EXISTS idx_leads_phone_e164 ON leads(phone_e164);
-CREATE INDEX IF NOT EXISTS idx_leads_email_lower ON leads(LOWER(TRIM(email)));
-CREATE INDEX IF NOT EXISTS idx_leads_company_lower ON leads(LOWER(TRIM(company_name)));
-CREATE INDEX IF NOT EXISTS idx_leads_stage ON leads(stage);
-CREATE INDEX IF NOT EXISTS idx_leads_assignee ON leads(current_assignee_id);
-CREATE INDEX IF NOT EXISTS idx_leads_hunter ON leads(original_hunter_id);
+CREATE INDEX idx_leads_phone_e164 ON leads(phone_e164);
+CREATE INDEX idx_leads_email_lower ON leads(LOWER(TRIM(email)));
+CREATE INDEX idx_leads_company_lower ON leads(LOWER(TRIM(company_name)));
+CREATE INDEX idx_leads_stage ON leads(stage);
+CREATE INDEX idx_leads_assignee ON leads(current_assignee_id);
+CREATE INDEX idx_leads_hunter ON leads(original_hunter_id);
 
 -- 4. ACTIVITY NOTES TABLE
-CREATE TABLE IF NOT EXISTS lead_activities (
+CREATE TABLE lead_activities (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
   author_id UUID NOT NULL REFERENCES team_members(id),
-  activity_type TEXT NOT NULL DEFAULT 'note', -- 'note', 'cadence_advance', 'status_change', 'approval', 'rejection', 'dnc'
+  activity_type TEXT NOT NULL DEFAULT 'note',
   content TEXT NOT NULL,
   mentions UUID[] DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
-CREATE INDEX IF NOT EXISTS idx_activities_lead ON lead_activities(lead_id);
+CREATE INDEX idx_activities_lead ON lead_activities(lead_id);
 
 -- 5. MISTAKE GUARD AUDIT LOG
-CREATE TABLE IF NOT EXISTS member_activity_mistakes (
+CREATE TABLE member_activity_mistakes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   lead_id UUID NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
   member_id UUID NOT NULL REFERENCES team_members(id),
-  mistake_type TEXT NOT NULL, -- 'cadence_advanced_without_reaction', etc.
+  mistake_type TEXT NOT NULL,
   description TEXT NOT NULL,
   attempted_action TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
+-- Row Level Security (RLS) Policies (Full read/write for authenticated and anon client)
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lead_activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE member_activity_mistakes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public access to team_members" ON team_members FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public access to leads" ON leads FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public access to lead_activities" ON lead_activities FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public access to member_activity_mistakes" ON member_activity_mistakes FOR ALL USING (true) WITH CHECK (true);
+
 -- =========================================================================
 -- ENTERPRISE RPC: check_duplicate_lead
--- Checks Phone (E.164), Email (case-insensitive), and Company (length >= 3)
 -- =========================================================================
 CREATE OR REPLACE FUNCTION check_duplicate_lead(
   p_phone_e164 TEXT,
@@ -186,8 +207,6 @@ $$;
 
 -- =========================================================================
 -- ENTERPRISE RPC: trigger_emergency_leave_and_reassign
--- Reassigns all open leads of member across active members round-robin
--- while preserving original_hunter_id for strict attribution
 -- =========================================================================
 CREATE OR REPLACE FUNCTION trigger_emergency_leave_and_reassign(
   p_member_id UUID
@@ -224,7 +243,7 @@ BEGIN
     );
   END IF;
 
-  -- Reassign open leads (not closed_won or closed_lost or archived)
+  -- Reassign open leads
   FOR v_lead_id IN
     SELECT id FROM leads
     WHERE current_assignee_id = p_member_id

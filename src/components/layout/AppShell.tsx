@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { AppProvider, useApp } from '@/lib/context/app-context';
-import { Navbar } from '@/components/layout/Navbar';
+import { Sidebar } from '@/components/layout/Sidebar';
+import { TopHeader } from '@/components/layout/TopHeader';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { EndOfMonthBanner } from '@/components/layout/EndOfMonthBanner';
 import { DuplicateAlertBanner } from '@/components/layout/DuplicateAlertBanner';
@@ -20,31 +21,40 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500 selection:text-slate-950 pb-16 md:pb-0">
-      {/* End of Month Close Alert Banner */}
-      <EndOfMonthBanner />
-
-      {/* Retroactive Pipeline Duplicate Alert Banner */}
-      <DuplicateAlertBanner onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)} />
-
-      {/* Main Top Navigation Header */}
-      <Navbar
-        onOpenCreateModal={() => setIsCreateModalOpen(true)}
+    <div className="min-h-screen flex bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-slate-950">
+      
+      {/* Left Sidebar (Matching Nexus CRM) */}
+      <Sidebar
+        onOpenTeamModal={() => setIsTeamModalOpen(true)}
         onOpenBatchModal={() => setIsBatchModalOpen(true)}
-        onOpenTeamModal={() => setIsTeamModalOpen(true)}
-        onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)}
       />
 
-      {/* Main Page Body */}
-      <main className="flex-1">
-        {children}
-      </main>
+      {/* Main Right Content Column */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        
+        {/* Top Header Bar with Search & Action Pills */}
+        <TopHeader
+          onOpenCreateModal={() => setIsCreateModalOpen(true)}
+          onOpenBatchModal={() => setIsBatchModalOpen(true)}
+          onOpenTeamModal={() => setIsTeamModalOpen(true)}
+          onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)}
+        />
 
-      {/* Bottom Mobile Navigation */}
-      <MobileNav
-        onOpenCreateModal={() => setIsCreateModalOpen(true)}
-        onOpenTeamModal={() => setIsTeamModalOpen(true)}
-      />
+        {/* Banners */}
+        <EndOfMonthBanner />
+        <DuplicateAlertBanner onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)} />
+
+        {/* Scrollable Main Workspace Content */}
+        <main className="flex-1 overflow-y-auto pb-16 md:pb-6">
+          {children}
+        </main>
+
+        {/* Mobile Bottom Navigation */}
+        <MobileNav
+          onOpenCreateModal={() => setIsCreateModalOpen(true)}
+          onOpenTeamModal={() => setIsTeamModalOpen(true)}
+        />
+      </div>
 
       {/* Modals & Slide-out Drawers */}
       <CreateLeadModal
