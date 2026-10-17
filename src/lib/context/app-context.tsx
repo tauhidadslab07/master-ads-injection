@@ -40,7 +40,7 @@ interface AppContextType {
   
   // Lead Operations
   checkDuplicate: (phone: string, email: string, company: string, excludeId?: string) => Promise<DuplicateCheckResult>;
-  createLead: (leadData: Partial<Lead>, allowDuplicateAnyway?: boolean) => { success: boolean; lead?: Lead; error?: string };
+  createLead: (leadData: Partial<Lead>, allowDuplicateAnyway?: boolean, initialNote?: string) => { success: boolean; lead?: Lead; error?: string };
   updateLead: (leadId: string, updates: Partial<Lead>) => void;
   
   // Approval Gate & Trusted Hunter
@@ -243,18 +243,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [hydratedLeads]);
 
+  // Add Activity Note with @Mention chime
+  const addActivityNote = useCallback((
+    leadId: string, 
+    content: string, 
+    mentions: string[] = [], 
+    activityType: LeadActivity['activity_type'] = 'note'
+  ) => {
+    const newNote: LeadActivity = {
+      id: `act-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      lead_id: leadId,
+      author_id: currentUser.id,
+      activity_type: activityType,
+      content,
+      mentions,
+      created_at: new Date().toISOString(),
+      author: currentUser
+    };
+
+    setActivities(prev => [newNote, ...prev]);
+
+    if (mentions.length > 0) {
+      soundEngine.playMentionChime();
+    }
+  }, [currentUser]);
+
   // Single Entity Creation with Fail-Safe Lock
-  const createLead = useCallback((leadData: Partial<Lead>, allowDuplicateAnyway: boolean = false) => {
+  const createLead = useCallback((leadData: Partial<Lead>, allowDuplicateAnyway: boolean = false, initialNote?: string) => {
     const phone = leadData.phone || '';
     const email = leadData.email || '';
     const company = leadData.company_name || '';
     const phone_e164 = normalizePhone(phone);
 
+    // Auto-detect channel: if phone exists -> whatsapp, else email
+    const autoChannel = leadData.channel || (phone.trim() ? 'whatsapp' : 'email');
+
     // Synchronous check against active pipeline
     const existingConflicts = hydratedLeads.filter(l => {
-      const pMatch = phone_e164 && l.phone_e164 === phone_e164;
-      const eMatch = email && l.email.toLowerCase().trim() === email.toLowerCase().trim();
-      const cMatch = company.length >= 3 && l.company_name.toLowerCase().trim() === company.toLowerCase().trim();
+      const pMatch = Boolean(phone_e164 && l.phone_e164 && l.phone_e164 === phone_e164);
+      const eMatch = Boolean(email && l.email && l.email.toLowerCase().trim() === email.toLowerCase().trim());
+      const cMatch = Boolean(company.length >= 3 && l.company_name && l.company_name.toLowerCase().trim() === company.toLowerCase().trim());
       return pMatch || eMatch || cMatch;
     });
 
@@ -299,7 +327,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       email: email,
       phone: phone,
       phone_e164: phone_e164,
-      channel: leadData.channel || 'whatsapp',
+      channel: autoChannel,
       website: leadData.website || '',
       stage: initialStage,
       original_hunter_id: hunterId,
@@ -327,10 +355,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       : `Lead created and queued for Team Leader / Deputy approval gate.`;
 
     addActivityNote(newLead.id, noteText, [], 'status_change');
+
+    // Add user's custom context note if provided
+    if (initialNote && initialNote.trim()) {
+      addActivityNote(newLead.id, `📝 Initial Context Note:\n${initialNote.trim()}`, [], 'note');
+    }
+
     soundEngine.playSuccessChime();
 
     return { success: true, lead: newLead };
-  }, [hydratedLeads, currentUser, teamMembers]);
+  }, [hydratedLeads, currentUser, teamMembers, addActivityNote]);
 
   // Update Lead
   const updateLead = useCallback((leadId: string, updates: Partial<Lead>) => {
@@ -346,30 +380,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  // Add Activity Note with @Mention chime
-  const addActivityNote = useCallback((
-    leadId: string, 
-    content: string, 
-    mentions: string[] = [], 
-    activityType: LeadActivity['activity_type'] = 'note'
-  ) => {
-    const newNote: LeadActivity = {
-      id: `act-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      lead_id: leadId,
-      author_id: currentUser.id,
-      activity_type: activityType,
-      content,
-      mentions,
-      created_at: new Date().toISOString(),
-      author: currentUser
-    };
 
-    setActivities(prev => [newNote, ...prev]);
-
-    if (mentions.length > 0) {
-      soundEngine.playMentionChime();
-    }
-  }, [currentUser]);
 
   // Leader / Deputy Approval Gate
   const approveLead = useCallback((leadId: string) => {

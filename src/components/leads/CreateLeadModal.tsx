@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '@/lib/context/app-context';
 import { Lead, DuplicateCheckResult, OutreachChannel } from '@/types/crm';
+import { COUNTRY_CODES, CountryCode, detectCountryFromPhone, formatWithCountryCode } from '@/lib/country-codes';
 import { 
   X, 
   AlertTriangle, 
@@ -12,10 +13,11 @@ import {
   Mail, 
   Phone, 
   Globe, 
-  DollarSign, 
   Check, 
   ShieldAlert,
-  Sparkles
+  MessageCircle,
+  FileText,
+  ChevronDown
 } from 'lucide-react';
 
 interface CreateLeadModalProps {
@@ -30,10 +32,13 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
   const [companyName, setCompanyName] = useState('');
   const [contactName, setContactName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  
+  // Phone & Country Code
+  const [selectedCountry, setSelectedCountry] = useState<CountryCode>(COUNTRY_CODES[0]); // Default Bangladesh (+880)
+  const [rawPhoneNumber, setRawPhoneNumber] = useState('');
+  
   const [website, setWebsite] = useState('');
-  const [channel, setChannel] = useState<OutreachChannel>('whatsapp');
-  const [dealValue, setDealValue] = useState('25000');
+  const [initialNote, setInitialNote] = useState('');
   
   // Fail-Safe Lock state
   const [allowDuplicateAnyway, setAllowDuplicateAnyway] = useState(false);
@@ -47,24 +52,52 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
   });
   const [isChecking, setIsChecking] = useState(false);
 
+  // Computed Full E.164 Phone number
+  const fullPhoneNumber = useMemo(() => {
+    return formatWithCountryCode(selectedCountry.dial_code, rawPhoneNumber);
+  }, [selectedCountry.dial_code, rawPhoneNumber]);
+
+  // Auto-detect channel based on whether phone or only email is provided
+  const autoChannel: OutreachChannel = useMemo(() => {
+    if (rawPhoneNumber.trim()) {
+      return 'whatsapp';
+    }
+    return 'email';
+  }, [rawPhoneNumber]);
+
+  // Auto-detect country code as user types or pastes phone
+  const handlePhoneChange = (val: string) => {
+    setRawPhoneNumber(val);
+    
+    // Check if user pasted/typed a number with country code like +880, +1, +44, 00880
+    const detected = detectCountryFromPhone(val);
+    if (detected) {
+      setSelectedCountry(detected);
+    }
+  };
+
   // Initialize or reset form
   useEffect(() => {
     if (editLead) {
       setCompanyName(editLead.company_name);
       setContactName(editLead.contact_name);
-      setEmail(editLead.email);
-      setPhone(editLead.phone);
+      setEmail(editLead.email || '');
+      setRawPhoneNumber(editLead.phone || '');
       setWebsite(editLead.website || '');
-      setChannel(editLead.channel);
-      setDealValue(String(editLead.deal_value || 25000));
+      setInitialNote('');
+
+      if (editLead.phone) {
+        const detected = detectCountryFromPhone(editLead.phone);
+        if (detected) setSelectedCountry(detected);
+      }
     } else {
       setCompanyName('');
       setContactName('');
       setEmail('');
-      setPhone('');
+      setRawPhoneNumber('');
+      setSelectedCountry(COUNTRY_CODES[0]); // Bangladesh (+880) default
       setWebsite('');
-      setChannel('whatsapp');
-      setDealValue('25000');
+      setInitialNote('');
     }
     setAllowDuplicateAnyway(false);
     setSubmitError(null);
@@ -76,9 +109,13 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
     if (!isOpen) return;
 
     const timer = setTimeout(async () => {
-      if (phone.trim() || email.trim() || companyName.trim().length >= 3) {
+      const phoneToCheck = fullPhoneNumber.trim();
+      const emailToCheck = email.trim();
+      const companyToCheck = companyName.trim();
+
+      if (phoneToCheck || emailToCheck || companyToCheck.length >= 3) {
         setIsChecking(true);
-        const res = await checkDuplicate(phone, email, companyName, editLead?.id);
+        const res = await checkDuplicate(phoneToCheck, emailToCheck, companyToCheck, editLead?.id);
         setDuplicateResult(res);
         setIsChecking(false);
       } else {
@@ -87,7 +124,7 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
     }, 280);
 
     return () => clearTimeout(timer);
-  }, [phone, email, companyName, isOpen, editLead?.id, checkDuplicate]);
+  }, [fullPhoneNumber, email, companyName, isOpen, editLead?.id, checkDuplicate]);
 
   if (!isOpen) return null;
 
@@ -98,35 +135,46 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
     e.preventDefault();
     setSubmitError(null);
 
-    if (!companyName.trim() || !contactName.trim() || !phone.trim() || !email.trim()) {
-      setSubmitError('Please fill in all mandatory fields (Company, Contact, Phone, Email).');
+    // Validation: Company is required
+    if (!companyName.trim()) {
+      setSubmitError('Please enter the Company / Brand Name.');
       return;
     }
+
+    // Validation: EITHER WhatsApp Phone OR Email must be provided!
+    if (!rawPhoneNumber.trim() && !email.trim()) {
+      setSubmitError('Please provide at least one contact channel: WhatsApp Phone or Email Address.');
+      return;
+    }
+
+    const finalContactName = contactName.trim() || 'Brand Lead';
+    const finalPhone = rawPhoneNumber.trim() ? fullPhoneNumber : '';
 
     if (editLead) {
       updateLead(editLead.id, {
         company_name: companyName.trim(),
-        contact_name: contactName.trim(),
+        contact_name: finalContactName,
         email: email.trim(),
-        phone: phone.trim(),
+        phone: finalPhone,
         website: website.trim(),
-        channel,
-        deal_value: Number(dealValue) || 25000
+        channel: autoChannel,
+        deal_value: editLead.deal_value || 25000
       });
       onClose();
     } else {
       const result = createLead(
         {
           company_name: companyName.trim(),
-          contact_name: contactName.trim(),
+          contact_name: finalContactName,
           email: email.trim(),
-          phone: phone.trim(),
+          phone: finalPhone,
           website: website.trim(),
-          channel,
-          deal_value: Number(dealValue) || 25000,
+          channel: autoChannel,
+          deal_value: 25000,
           original_hunter_id: currentUser.id
         },
-        allowDuplicateAnyway
+        allowDuplicateAnyway,
+        initialNote.trim() || undefined
       );
 
       if (result.success) {
@@ -139,7 +187,6 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
 
   const handleDeepLinkToExisting = (matchId: string) => {
     onClose();
-    // Find matching lead in state or by id and open in drawer
     setSelectedLead({ id: matchId } as any);
     setIsLeadDrawerOpen(true);
   };
@@ -151,17 +198,17 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base font-bold text-white tracking-wide">
-                {editLead ? 'Edit Lead Record' : 'Create New Outreach Lead'}
+                {editLead ? 'Edit Outreach Lead' : 'Create New Outreach Lead'}
               </h2>
               <p className="text-xs text-slate-400">
-                Real-time multi-field E.164 phone, email & brand deduplication
+                Upload via WhatsApp or Email with smart country code auto-detection
               </p>
             </div>
           </div>
@@ -177,13 +224,13 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs">
           
           {submitError && (
-            <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 flex items-start space-x-2">
+            <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/50 text-rose-300 flex items-start space-x-2 animate-in fade-in">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
               <span>{submitError}</span>
             </div>
           )}
 
-          {/* Company Name */}
+          {/* Company / Brand Name */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="font-semibold text-slate-300 flex items-center space-x-1.5">
@@ -201,152 +248,163 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
               required
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="e.g. Luminary Athletic Wear"
+              placeholder="e.g. Nexus Athletic Wear"
               className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
                 duplicateResult.offendingFields.company
                   ? 'border-amber-500/80 ring-2 ring-amber-500/30'
-                  : 'border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
+                  : 'border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
               }`}
             />
           </div>
 
-          {/* Contact Person Name */}
+          {/* Contact Person Name (Optional with smart fallback) */}
           <div>
             <label className="font-semibold text-slate-300 flex items-center space-x-1.5 mb-1.5">
               <User className="w-3.5 h-3.5 text-slate-400" />
-              <span>Contact Person Name *</span>
+              <span>Contact Person Name (Optional)</span>
             </label>
             <input
               type="text"
-              required
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
-              placeholder="e.g. Jessica Thorne"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+              placeholder="e.g. Jessica Thorne (defaults to Brand Lead if blank)"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
             />
           </div>
 
-          {/* Phone & Email Dual Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            
-            {/* Phone */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="font-semibold text-slate-300 flex items-center space-x-1.5">
-                  <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Phone (E.164) *</span>
-                </label>
-                {duplicateResult.offendingFields.phone && (
-                  <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/50">
-                    <span>⚠️ Duplicate</span>
-                  </span>
-                )}
+          {/* Phone (WhatsApp) with Smart Country Code Selector & Auto-Detection */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="font-semibold text-slate-300 flex items-center space-x-1.5">
+                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                <span>WhatsApp Phone Number (Upload via WhatsApp)</span>
+              </label>
+              {duplicateResult.offendingFields.phone && (
+                <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/50">
+                  <span>⚠️ Duplicate</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              {/* Country Code Dropdown */}
+              <div className="relative shrink-0">
+                <select
+                  value={selectedCountry.code}
+                  onChange={(e) => {
+                    const found = COUNTRY_CODES.find(c => c.code === e.target.value);
+                    if (found) setSelectedCountry(found);
+                  }}
+                  className="px-2.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs font-bold appearance-none pr-7 focus:outline-none focus:border-emerald-500"
+                >
+                  {COUNTRY_CODES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.dial_code} ({c.name})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3 h-3 text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+
+              {/* Number Input */}
               <input
                 type="text"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1 (415) 890-1234"
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
+                value={rawPhoneNumber}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                placeholder="e.g. 01712345678 or +8801712..."
+                className={`flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none transition-all font-mono ${
                   duplicateResult.offendingFields.phone
                     ? 'border-amber-500/80 ring-2 ring-amber-500/30'
-                    : 'border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
+                    : 'border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
                 }`}
               />
             </div>
 
-            {/* Email */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="font-semibold text-slate-300 flex items-center space-x-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Email Address *</span>
-                </label>
-                {duplicateResult.offendingFields.email && (
-                  <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/50">
-                    <span>⚠️ Duplicate</span>
-                  </span>
-                )}
-              </div>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="jessica@luminaryathletics.com"
-                className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
-                  duplicateResult.offendingFields.email
-                    ? 'border-amber-500/80 ring-2 ring-amber-500/30'
-                    : 'border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
-                }`}
-              />
-            </div>
-
+            <p className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
+              <span>Auto-detects country code if typed with +, or uses selected country prefix.</span>
+              {rawPhoneNumber.trim() && (
+                <span className="font-mono text-emerald-400 font-bold">
+                  Formatted: {fullPhoneNumber}
+                </span>
+              )}
+            </p>
           </div>
 
-          {/* Outreach Channel & Est Deal Value */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            
-            <div>
-              <label className="font-semibold text-slate-300 mb-1.5 block">
-                Primary Outreach Channel
+          {/* Email Address */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="font-semibold text-slate-300 flex items-center space-x-1.5">
+                <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Email Address (Upload via Email)</span>
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setChannel('whatsapp')}
-                  className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
-                    channel === 'whatsapp'
-                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 shadow-sm'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <span>💬 WhatsApp</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setChannel('email')}
-                  className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
-                    channel === 'email'
-                      ? 'bg-cyan-950/80 border-cyan-500 text-cyan-300 shadow-sm'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <span>📧 Email</span>
-                </button>
-              </div>
+              {duplicateResult.offendingFields.email && (
+                <span className="inline-flex items-center space-x-1 text-[11px] font-bold text-amber-400 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/50">
+                  <span>⚠️ Duplicate</span>
+                </span>
+              )}
             </div>
-
-            <div>
-              <label className="font-semibold text-slate-300 flex items-center space-x-1.5 mb-1.5">
-                <DollarSign className="w-3.5 h-3.5 text-slate-400" />
-                <span>Est. Retainer Value ($/mo)</span>
-              </label>
-              <input
-                type="number"
-                value={dealValue}
-                onChange={(e) => setDealValue(e.target.value)}
-                placeholder="25000"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
-              />
-            </div>
-
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="e.g. jessica@luminaryathletics.com"
+              className={`w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border text-slate-100 placeholder-slate-500 focus:outline-none transition-all ${
+                duplicateResult.offendingFields.email
+                  ? 'border-amber-500/80 ring-2 ring-amber-500/30'
+                  : 'border-slate-800 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
+              }`}
+            />
           </div>
 
-          {/* Website / Ad Library URL */}
+          {/* AUTO-ROUTED CHANNEL INDICATOR PILL */}
+          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <span className="text-[11px] text-slate-400 font-medium">
+              Outreach Channel Assignment:
+            </span>
+            {autoChannel === 'whatsapp' ? (
+              <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-emerald-950 border border-emerald-500/60 text-emerald-300 text-xs font-bold">
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>⚡ Auto: 💬 WhatsApp Lead</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-cyan-950 border border-cyan-500/60 text-cyan-300 text-xs font-bold">
+                <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                <span>⚡ Auto: 📧 Email Lead</span>
+              </span>
+            )}
+          </div>
+
+          {/* Brand Website / Meta Ad Library URL (Optional) */}
           <div>
             <label className="font-semibold text-slate-300 flex items-center space-x-1.5 mb-1.5">
               <Globe className="w-3.5 h-3.5 text-slate-400" />
-              <span>Brand Website or Meta Ad Library URL</span>
+              <span>Brand Website or Meta Ad Library URL (Optional)</span>
             </label>
             <input
               type="url"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
-              placeholder="https://luminaryathletics.com"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 text-slate-100 placeholder-slate-500 focus:outline-none transition-all"
+              placeholder="https://nexusathletics.com or Meta Ad Library link"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 text-slate-100 placeholder-slate-500 text-xs focus:outline-none"
             />
+          </div>
+
+          {/* DEDICATED NOTE / CONTEXT SECTION */}
+          <div>
+            <label className="font-semibold text-slate-300 flex items-center space-x-1.5 mb-1.5">
+              <FileText className="w-3.5 h-3.5 text-amber-400" />
+              <span>Outreach Note / Context (Optional)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={initialNote}
+              onChange={(e) => setInitialNote(e.target.value)}
+              placeholder="Write any note about this lead (e.g. Sourced from TikTok Ads, scaling $30k/mo, looking for creative injection hooks, special requirements)..."
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 text-slate-100 placeholder-slate-500 text-xs focus:outline-none transition-all leading-relaxed"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              This note will automatically appear at the top of the Lead Activity Timeline.
+            </p>
           </div>
 
           {/* DEDUPLICATION ALERT CARD */}
@@ -404,7 +462,7 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
                     type="checkbox"
                     checked={allowDuplicateAnyway}
                     onChange={(e) => setAllowDuplicateAnyway(e.target.checked)}
-                    className="w-4 h-4 rounded text-cyan-600 focus:ring-cyan-500 border-slate-700 bg-slate-900"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-700 bg-slate-900"
                   />
                   <span className="text-xs text-amber-200 font-medium">
                     [ ] Allow adding duplicate record anyway (Override Lock)
@@ -430,7 +488,7 @@ export function CreateLeadModal({ isOpen, onClose, editLead }: CreateLeadModalPr
               className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-1.5 transition-all shadow-lg ${
                 isSubmitDisabled
                   ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 shadow-cyan-500/25 active:scale-95'
+                  : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/25 active:scale-95'
               }`}
             >
               {isSubmitDisabled ? (
