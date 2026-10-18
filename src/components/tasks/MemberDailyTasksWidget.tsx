@@ -8,7 +8,6 @@ import {
   CheckCircle2, 
   Clock, 
   AlertCircle, 
-  Crown, 
   Check, 
   ChevronRight, 
   MessageSquare,
@@ -76,12 +75,6 @@ export function MemberDailyTasksWidget() {
               টিম লিডার তৌহিদ আপনাকে আজকের জন্য যে কাজগুলো দিয়েছেন তা সম্পন্ন করে এখানে স্ট্যাটাস আপডেট করুন।
             </p>
           </div>
-        </div>
-
-        {/* Completion count badge */}
-        <div className="flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 self-start sm:self-auto text-xs font-bold text-slate-300">
-          <Crown className="w-3.5 h-3.5 text-amber-400" />
-          <span>তৌহিদ ভাই কর্তৃক নির্ধারিত</span>
         </div>
       </div>
 
