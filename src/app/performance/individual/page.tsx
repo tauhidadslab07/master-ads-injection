@@ -19,20 +19,26 @@ import {
   ArrowRight,
   MessageSquare,
   Mail,
+  Lock,
   Check,
   ChevronRight,
   ExternalLink
 } from 'lucide-react';
 
 export default function IndividualPerformancePage() {
-  const { teamMembers, leads, activities, mistakes, currentUser } = useApp();
+  const { teamMembers, leads, activities, mistakes, currentUser, leaderSession } = useApp();
+
+  const isLeader = currentUser.role === 'team_leader' || !!leaderSession;
 
   // Active member being inspected (defaults to logged-in user or first member)
-  const [selectedMemberId, setSelectedMemberId] = useState<string>(currentUser.id || teamMembers[0]?.id);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>(currentUser.id);
+
+  // If user is not leader, enforce viewing only their own profile
+  const effectiveMemberId = isLeader ? selectedMemberId : currentUser.id;
 
   const selectedMember = useMemo(() => {
-    return teamMembers.find(m => m.id === selectedMemberId) || currentUser || teamMembers[0];
-  }, [teamMembers, selectedMemberId, currentUser]);
+    return teamMembers.find(m => m.id === effectiveMemberId) || currentUser || teamMembers[0];
+  }, [teamMembers, effectiveMemberId, currentUser]);
 
   // 1. Leads Hunted (Collected) by this member
   const huntedLeads = useMemo(() => {
@@ -201,32 +207,50 @@ export default function IndividualPerformancePage() {
         </Link>
       </div>
 
-      {/* 2. Interactive Member Selector Pills */}
+      {/* 2. Interactive Member Selector Pills (Team Leader Exclusive or View Self) */}
       <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-2">
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
-          👤 Select Team Member to Inspect:
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-1">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+            <span>👤 Select Team Member to Inspect:</span>
+            {isLeader && (
+              <span className="text-[10px] text-cyan-400 font-bold bg-cyan-950/80 border border-cyan-800/80 px-2 py-0.5 rounded-full">
+                👑 Team Leader Access
+              </span>
+            )}
+          </p>
+          {!isLeader && (
+            <span className="text-[10px] text-amber-400 font-bold bg-amber-950/70 border border-amber-800/80 px-2 py-0.5 rounded-full flex items-center space-x-1 self-start sm:self-auto">
+              <Lock className="w-3 h-3 text-amber-400" />
+              <span>শুধুমাত্র টিম লিডার সকল মেম্বারের প্রোফাইল সুইচ করতে পারেন</span>
+            </span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           {teamMembers.map(m => {
             const isSelected = m.id === selectedMember.id;
             const isTL = m.role === 'team_leader';
+            const canClick = isLeader || m.id === currentUser.id;
             return (
               <button
                 key={m.id}
                 type="button"
-                onClick={() => setSelectedMemberId(m.id)}
+                disabled={!canClick}
+                onClick={() => canClick && setSelectedMemberId(m.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all ${
                   isSelected
                     ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30 ring-2 ring-purple-400'
-                    : 'bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-600'
+                    : canClick
+                    ? 'bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-600 cursor-pointer'
+                    : 'bg-slate-950/30 border border-slate-900 text-slate-600 cursor-not-allowed opacity-50'
                 }`}
               >
                 <span>{m.full_name}</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded font-black ${
                   isSelected ? 'bg-purple-950 text-purple-200' : 'bg-slate-900 text-slate-500'
                 }`}>
-                  {isTL ? 'TL' : m.role.slice(0, 3).toUpperCase()}
+                  {isTL ? 'TL' : 'Outreach'}
                 </span>
+                {!canClick && <Lock className="w-3 h-3 text-slate-600 ml-1" />}
               </button>
             );
           })}

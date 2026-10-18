@@ -16,7 +16,11 @@ import {
   Users, 
   ShieldAlert,
   Flame,
-  CheckCircle2
+  CheckCircle2,
+  KeyRound,
+  ArrowLeft,
+  Crown,
+  Lock
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -27,9 +31,20 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }: SidebarProps) {
   const pathname = usePathname();
-  const { leads, retroactiveDuplicates, currentUser, selectedNiche, setIsNichesModalOpen, teamMembers } = useApp();
+  const { 
+    leads, 
+    retroactiveDuplicates, 
+    currentUser, 
+    selectedNiche, 
+    setIsNichesModalOpen, 
+    teamMembers,
+    leaderSession,
+    setIsLoginModalOpen,
+    inspectMember,
+    exitInspection
+  } = useApp();
 
-  const isLeader = currentUser.role === 'team_leader';
+  const isLeader = currentUser.role === 'team_leader' || !!leaderSession;
   const isDeputy = currentUser.is_deputy;
 
   // Counters
@@ -324,16 +339,44 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
 
       </div>
 
-      {/* Footer Info */}
-      <div className="p-3 border-t border-slate-850 bg-slate-950/70 text-[11px] text-slate-500">
+      {/* Footer User & Authentication Section */}
+      <div className="p-3 border-t border-slate-850 bg-slate-950/80 text-[11px] space-y-2">
         <div className="flex items-center justify-between">
-          <span>Active Hunter:</span>
-          <strong className="text-slate-300">{currentUser.full_name.split(' ')[0]}</strong>
+          <div className="flex items-center space-x-2">
+            <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-cyan-400 text-xs">
+              {currentUser.full_name.charAt(0)}
+            </div>
+            <div className="leading-tight">
+              <span className="font-bold text-slate-200 block truncate max-w-[110px]">
+                {currentUser.full_name}
+              </span>
+              <span className="text-[9px] text-cyan-400 font-mono">@{currentUser.username}</span>
+            </div>
+          </div>
+          <span className="text-[10px] text-amber-400 font-bold">
+            🔥 {currentUser.consecutive_approvals}
+          </span>
         </div>
-        <div className="flex items-center justify-between mt-1">
-          <span>Streak:</span>
-          <span className="text-amber-400 font-bold">🔥 {currentUser.consecutive_approvals} streak</span>
-        </div>
+
+        {/* Team Leader Inspection Exit Button if active */}
+        {leaderSession && currentUser.id !== leaderSession.id && (
+          <button
+            onClick={exitInspection}
+            className="w-full py-1.5 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-bold text-[10px] flex items-center justify-center space-x-1 transition-all"
+          >
+            <ArrowLeft className="w-3 h-3 stroke-[3]" />
+            <span>তৌহিদ (Leader)-এ ফিরুন</span>
+          </button>
+        )}
+
+        {/* Login / Switch Account Button */}
+        <button
+          onClick={() => setIsLoginModalOpen(true)}
+          className="w-full py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white font-bold text-[10px] flex items-center justify-center space-x-1.5 transition-colors"
+        >
+          <KeyRound className="w-3 h-3 text-cyan-400" />
+          <span>আইডি ও পাসওয়ার্ড দিয়ে লগইন</span>
+        </button>
       </div>
 
     </aside>

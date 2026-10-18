@@ -15,6 +15,9 @@ import { TeamRosterModal } from '@/components/team/TeamRosterModal';
 import { DuplicateReviewModal } from '@/components/leads/DuplicateReviewModal';
 import { NichesModal } from '@/components/leads/NichesModal';
 
+import { LeaderInspectionBanner } from '@/components/layout/LeaderInspectionBanner';
+import { LoginModal } from '@/components/auth/LoginModal';
+
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const { 
     isNichesModalOpen, 
@@ -22,7 +25,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     isCreateModalOpen,
     setIsCreateModalOpen,
     isBatchModalOpen,
-    setIsBatchModalOpen
+    setIsBatchModalOpen,
+    isLoginModalOpen,
+    setIsLoginModalOpen
   } = useApp();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
@@ -48,6 +53,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)}
           onOpenNichesModal={() => setIsNichesModalOpen(true)}
         />
+
+        {/* Team Leader Impersonation / Inspection Banner */}
+        <LeaderInspectionBanner />
 
         {/* Banners */}
         <EndOfMonthBanner />
@@ -95,6 +103,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <LeadDetailsDrawer />
 
       <OutreachFocusMode />
+
+      {/* Profile Authentication Login Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+      />
     </div>
   );
 }

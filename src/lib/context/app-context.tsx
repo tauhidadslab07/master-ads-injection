@@ -92,7 +92,13 @@ interface AppContextType {
   setScheduledCallback: (leadId: string, date: string, reason?: string) => void;
   clearScheduledCallback: (leadId: string) => void;
 
-  // Authentication by User ID & Password
+  // Authentication & Impersonation by Team Leader
+  leaderSession: TeamMember | null;
+  isLoginModalOpen: boolean;
+  setIsLoginModalOpen: (open: boolean) => void;
+  inspectMember: (member: TeamMember) => void;
+  exitInspection: () => void;
+  logout: () => void;
   loginWithCredentials: (username: string, password: string) => { success: boolean; error?: string };
 }
 
@@ -104,8 +110,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activities, setActivities] = useState<LeadActivity[]>(INITIAL_ACTIVITIES);
   const [mistakes, setMistakes] = useState<MemberActivityMistake[]>(INITIAL_MISTAKES);
   
-  // Default logged in user: Sophia Sterling (Team Leader)
+  // Current user and leader session (Tauhid by default)
   const [currentUser, setCurrentUser] = useState<TeamMember>(INITIAL_TEAM_MEMBERS[0]);
+  const [leaderSession, setLeaderSession] = useState<TeamMember | null>(INITIAL_TEAM_MEMBERS[0]);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isLeadDrawerOpen, setIsLeadDrawerOpen] = useState<boolean>(false);
@@ -116,6 +124,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isNichesModalOpen, setIsNichesModalOpen] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
+
+  // Restore authenticated session from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedUserId = localStorage.getItem('master_ads_user_id');
+      const savedLeaderId = localStorage.getItem('master_ads_leader_id');
+      if (savedUserId) {
+        const foundUser = teamMembers.find(m => m.id === savedUserId);
+        if (foundUser) setCurrentUser(foundUser);
+      }
+      if (savedLeaderId) {
+        const foundLeader = teamMembers.find(m => m.id === savedLeaderId);
+        if (foundLeader) setLeaderSession(foundLeader);
+      }
+    }
+  }, [teamMembers]);
 
   // Sync Supabase if available
   useEffect(() => {
@@ -984,6 +1008,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     soundEngine.playSuccessChime();
   }, [currentUser, updateLead, addActivityNote]);
 
+  // Team Leader Impersonation / "Go" to inspect any member's profile & dashboard
+  const inspectMember = useCallback((member: TeamMember) => {
+    // Only Team Leader or an active Leader session can inspect
+    const leader = leaderSession || (currentUser.role === 'team_leader' ? currentUser : null);
+    if (!leader) return;
+
+    setLeaderSession(leader);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('master_ads_leader_id', leader.id);
+      localStorage.setItem('master_ads_user_id', member.id);
+    }
+    setCurrentUser(member);
+    soundEngine.playSuccessChime();
+  }, [currentUser, leaderSession]);
+
+  // Exit inspection and return back to Team Leader profile
+  const exitInspection = useCallback(() => {
+    if (leaderSession) {
+      setCurrentUser(leaderSession);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('master_ads_user_id', leaderSession.id);
+      }
+      soundEngine.playSuccessChime();
+    }
+  }, [leaderSession]);
+
+  // Sign out
+  const logout = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('master_ads_user_id');
+      localStorage.removeItem('master_ads_leader_id');
+    }
+    setLeaderSession(null);
+    setIsLoginModalOpen(true);
+  }, []);
+
   // Login by User ID & Password (No email needed!)
   const loginWithCredentials = useCallback((username: string, password: string) => {
     const member = teamMembers.find(
@@ -995,6 +1055,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     setCurrentUser(member);
+    if (member.role === 'team_leader') {
+      setLeaderSession(member);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('master_ads_leader_id', member.id);
+      }
+    } else {
+      setLeaderSession(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('master_ads_leader_id');
+      }
+    }
+
     if (typeof window !== 'undefined') {
       localStorage.setItem('master_ads_user_id', member.id);
     }
@@ -1006,6 +1078,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     leads: hydratedLeads,
     teamMembers,
     currentUser,
+    leaderSession,
+    isLoginModalOpen,
     activities,
     mistakes,
     selectedLead,
@@ -1021,6 +1095,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     retroactiveDuplicates,
 
     setCurrentUser,
+    setIsLoginModalOpen,
+    inspectMember,
+    exitInspection,
+    logout,
     setSelectedLead,
     setIsLeadDrawerOpen,
     setChannelFilter,

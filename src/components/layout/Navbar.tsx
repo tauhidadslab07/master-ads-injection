@@ -297,11 +297,11 @@ export function Navbar({
               <div className="absolute right-0 mt-2 w-72 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-2 hidden group-hover:block hover:block z-50 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-2 py-1.5 border-b border-slate-800 mb-1">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Current Profile</p>
-                  <p className="text-[10px] text-slate-500 font-mono">@{currentUser.username} • Password: 123</p>
+                  <p className="text-[10px] text-cyan-400 font-mono">@{currentUser.username}</p>
                 </div>
 
                 {/* Team Leader Exclusive "Go" Section */}
-                {isLeader && (
+                {isLeader ? (
                   <div className="p-2.5 my-2 rounded-xl bg-cyan-950/70 border border-cyan-500/50 space-y-1.5">
                     <div className="flex items-center space-x-1.5 text-cyan-300 font-extrabold text-[11px] uppercase tracking-wider">
                       <Zap className="w-3.5 h-3.5 text-cyan-400" />
@@ -323,36 +323,11 @@ export function Navbar({
                       ))}
                     </div>
                   </div>
+                ) : (
+                  <div className="p-2.5 my-2 rounded-xl bg-slate-950 border border-slate-800 text-[10px] text-slate-400 leading-relaxed">
+                    🔒 আপনার প্রোফাইল সুরক্ষিত। শুধুমাত্র টিম লিডার সকল প্রোফাইল পর্যবেক্ষণ করতে পারবেন।
+                  </div>
                 )}
-
-                <div className="space-y-1 max-h-56 overflow-y-auto">
-                  {teamMembers.map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => setCurrentUser(m)}
-                      className={`w-full flex items-center justify-between p-2 rounded-lg text-left text-xs transition-colors ${
-                        m.id === currentUser.id 
-                          ? 'bg-cyan-950/80 border border-cyan-700 text-white' 
-                          : 'hover:bg-slate-800 text-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 rounded-full bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-200 border border-slate-700">
-                          {m.full_name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-200">{m.full_name}</p>
-                          <p className="text-[10px] text-slate-400 capitalize">
-                            {m.role.replace('_', ' ')} {m.is_deputy ? '• Deputy' : ''}
-                          </p>
-                        </div>
-                      </div>
-                      {m.id === currentUser.id && (
-                        <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-                      )}
-                    </button>
-                  ))}
-                </div>
 
                 {/* Login Modal Button */}
                 <div className="pt-2 mt-2 border-t border-slate-800">
