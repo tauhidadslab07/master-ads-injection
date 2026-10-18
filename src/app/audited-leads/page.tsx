@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useApp } from '@/lib/context/app-context';
-import { Lead } from '@/types/crm';
+import { Lead, OutreachChannel } from '@/types/crm';
 import { getWhatsAppUrl } from '@/lib/phone-utils';
 import { soundEngine } from '@/lib/audio-chime';
 import { detectCountryFromPhone, getCountryLocalTime, COUNTRY_CODES } from '@/lib/country-codes';
@@ -12,7 +12,6 @@ import {
   Layers, 
   UserCheck, 
   Search, 
-  ChevronDown, 
   Clock, 
   MessageSquare, 
   Mail, 
@@ -25,7 +24,9 @@ import {
   Sparkles,
   Users,
   ShieldCheck,
-  Check
+  Check,
+  ChevronRight,
+  Database
 } from 'lucide-react';
 
 export default function AuditedLeadsPage() {
@@ -33,16 +34,24 @@ export default function AuditedLeadsPage() {
     leads, 
     currentUser, 
     teamMembers, 
+    passAudit,
+    bulkPassAudit,
     assignLead, 
     bulkAssignLead, 
     addActivityNote,
     activities
   } = useApp();
 
+  const [activeTab, setActiveTab] = useState<'under_audit' | 'ready_for_sales'>('under_audit');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
-  const [bulkAssigneeId, setBulkAssigneeId] = useState('');
-  const [filterAssignee, setFilterAssignee] = useState<'all' | 'unassigned' | string>('all');
+  const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'email'>('all');
+  
+  // Sales assignment inputs
+  const [bulkSalesMemberId, setBulkSalesMemberId] = useState('');
+  const [bulkChannel, setBulkChannel] = useState<OutreachChannel>('whatsapp');
+  const [rowSalesChannels, setRowSalesChannels] = useState<Record<string, OutreachChannel>>({});
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Note Modal state
@@ -67,18 +76,30 @@ export default function AuditedLeadsPage() {
     }
   }, [toastMessage]);
 
-  // Audited leads: all leads that have completed quality audit
-  const auditedLeads = useMemo(() => {
-    return leads.filter(l => {
-      // Must be audited or approved
-      const isAudited = l.stage === 'audited' || (l.stage === 'approved' && !l.current_assignee_id);
-      if (!isAudited) return false;
+  // Reset selection when tab switches
+  useEffect(() => {
+    setSelectedLeadIds(new Set());
+    setBulkSalesMemberId('');
+  }, [activeTab]);
 
-      // Filter by assignee
-      if (filterAssignee === 'unassigned' && l.current_assignee_id) return false;
-      if (filterAssignee !== 'all' && filterAssignee !== 'unassigned' && l.current_assignee_id !== filterAssignee) {
-        return false;
-      }
+  // Leads under audit review (assigned to auditor from Lead Store)
+  const underAuditLeads = useMemo(() => {
+    return leads.filter(l => l.stage === 'audit');
+  }, [leads]);
+
+  // Audited leads waiting for Team Leader sales assignment
+  const readyForSalesLeads = useMemo(() => {
+    return leads.filter(l => l.stage === 'audited');
+  }, [leads]);
+
+  // Currently displayed leads based on tab and filters
+  const displayedLeads = useMemo(() => {
+    const baseList = activeTab === 'under_audit' ? underAuditLeads : readyForSalesLeads;
+
+    return baseList.filter(l => {
+      // Channel filter
+      if (channelFilter === 'whatsapp' && l.channel !== 'whatsapp') return false;
+      if (channelFilter === 'email' && l.channel !== 'email') return false;
 
       // Search
       if (searchQuery.trim()) {
@@ -95,12 +116,7 @@ export default function AuditedLeadsPage() {
 
       return true;
     });
-  }, [leads, filterAssignee, searchQuery]);
-
-  // Overall counts
-  const totalAudited = leads.filter(l => l.stage === 'audited' || (l.stage === 'approved' && !l.current_assignee_id)).length;
-  const unassignedCount = leads.filter(l => l.stage === 'audited' && !l.current_assignee_id).length;
-  const totalInCadence = leads.filter(l => l.stage === 'contacted' || l.stage === 'replied').length;
+  }, [activeTab, underAuditLeads, readyForSalesLeads, channelFilter, searchQuery]);
 
   // Toggle selection
   const handleToggleSelect = (leadId: string) => {
@@ -116,223 +132,313 @@ export default function AuditedLeadsPage() {
   };
 
   const handleToggleSelectAll = () => {
-    if (selectedLeadIds.size === auditedLeads.length) {
+    if (selectedLeadIds.size === displayedLeads.length) {
       setSelectedLeadIds(new Set());
     } else {
-      setSelectedLeadIds(new Set(auditedLeads.map(l => l.id)));
+      setSelectedLeadIds(new Set(displayedLeads.map(l => l.id)));
     }
   };
 
-  // Bulk Assign to Sales Member
-  const handleBulkAssign = () => {
-    if (selectedLeadIds.size === 0 || !bulkAssigneeId) return;
-    const member = teamMembers.find(m => m.id === bulkAssigneeId);
-    bulkAssignLead(Array.from(selectedLeadIds), bulkAssigneeId);
-    
-    setToastMessage(`🚀 ${selectedLeadIds.size}টি লিড সফলভাবে ${member?.full_name}-কে অ্যাসাইন করা হয়েছে! এখন ${member?.full_name}-এর Today's Work ড্যাশবোর্ডে লাইভ দেখতে পাবেন।`);
-    setSelectedLeadIds(new Set());
-    setBulkAssigneeId('');
+  // Action: Single Auditor marks audit as complete
+  const handleSinglePassAudit = (leadId: string) => {
+    const lead = leads.find(l => l.id === leadId);
+    passAudit(leadId);
+    setToastMessage(`✅ "${lead?.company_name || 'Lead'}" এর অডিট সম্পন্ন হয়েছে! লিডটি এখন "Ready for Sales"-এ টিম লিডারের সেলস এসাইনমেন্টের জন্য প্রস্তুত।`);
   };
 
-  // Single Assign to Sales Member
-  const handleSingleAssign = (leadId: string, memberId: string) => {
+  // Action: Bulk Auditor marks audit as complete
+  const handleBulkPassAudit = () => {
+    if (selectedLeadIds.size === 0) return;
+    const count = selectedLeadIds.size;
+    bulkPassAudit(Array.from(selectedLeadIds));
+    setToastMessage(`✅ ${count}টি লিডের অডিট সম্পন্ন হয়েছে এবং "Ready for Sales"-এ স্থানান্তর করা হয়েছে!`);
+    setSelectedLeadIds(new Set());
+  };
+
+  // Action: Team Leader assigns Audited Lead to a Sales Member for Messaging
+  const handleSingleAssignSales = (leadId: string, memberId: string) => {
     if (!memberId) return;
     const member = teamMembers.find(m => m.id === memberId);
-    assignLead(leadId, memberId);
-    setToastMessage(`🎯 লিডটি সফলভাবে ${member?.full_name}-কে অ্যাসাইন করা হয়েছে! এখন ${member?.full_name}-এর Today's Work ড্যাশবোর্ডে লাইভ দেখতে পাবেন।`);
+    const lead = leads.find(l => l.id === leadId);
+    const channel = rowSalesChannels[leadId] || lead?.channel || 'whatsapp';
+
+    assignLead(leadId, memberId, channel);
+    setToastMessage(`🚀 "${lead?.company_name || 'Lead'}" সফলভাবে ${member?.full_name}-কে ${channel.toUpperCase()} মেসেজ পাঠানোর জন্য এসাইন করা হয়েছে! মেম্বারের ড্যাশবোর্ডে যুক্ত হয়েছে।`);
   };
 
-  // Quick note save
+  // Action: Team Leader bulk assigns Audited Leads to a Sales Member
+  const handleBulkAssignSales = () => {
+    if (selectedLeadIds.size === 0 || !bulkSalesMemberId) return;
+    const member = teamMembers.find(m => m.id === bulkSalesMemberId);
+    const count = selectedLeadIds.size;
+
+    bulkAssignLead(Array.from(selectedLeadIds), bulkSalesMemberId, bulkChannel);
+    setToastMessage(`🚀 ${count}টি অডিটকৃত লিড সফলভাবে ${member?.full_name}-কে ${bulkChannel.toUpperCase()} মেসেজিংয়ের জন্য এসাইন করা হয়েছে!`);
+    
+    setSelectedLeadIds(new Set());
+    setBulkSalesMemberId('');
+  };
+
+  // Save quick note
   const handleSaveNote = () => {
     if (!noteModalLead || !quickNoteText.trim()) return;
     addActivityNote(noteModalLead.id, quickNoteText.trim(), [], 'note');
-    setQuickNoteText('');
     setNoteModalLead(null);
-    soundEngine.playMentionChime();
+    setQuickNoteText('');
+    soundEngine.playSuccessChime();
   };
 
-  // Timeline note save
-  const handleSaveTimelineNote = (chipText?: string) => {
-    const textToSave = chipText || timelineQuickNote;
-    if (!timelineModalLead || !textToSave.trim()) return;
-    addActivityNote(timelineModalLead.id, textToSave.trim(), [], 'note');
-    if (!chipText) setTimelineQuickNote('');
-    soundEngine.playMentionChime();
+  // Save timeline note
+  const handleSaveTimelineNote = () => {
+    if (!timelineModalLead || !timelineQuickNote.trim()) return;
+    addActivityNote(timelineModalLead.id, timelineQuickNote.trim(), [], 'note');
+    setTimelineQuickNote('');
+    soundEngine.playSuccessChime();
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto min-h-full">
       
-      {/* 1. Header Banner & Action Bar */}
-      <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-black text-white tracking-wide">
-                  Audited Lead (অডিটেড লিড)
-                </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-emerald-950 border border-emerald-500/50 text-emerald-300">
-                  {totalAudited} Leads Ready
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                কোয়ালিটি অডিট সম্পন্ন হয়েছে। টিম লিডার এখান থেকে সেলস টিমের মেম্বারদের কাছে লিড অ্যাসাইন করবেন।
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Links */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Link
-            href="/lead-store"
-            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 active:scale-95 transition-all flex items-center space-x-1.5"
-          >
-            <span>← Lead Store</span>
-          </Link>
-
-          <Link
-            href="/"
-            className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
-          >
-            <span>Today's Work (ড্যাশবোর্ড)</span>
-            <ArrowRight className="w-4 h-4 stroke-[3]" />
-          </Link>
-        </div>
-      </div>
-
-      {/* Toast Notification Alert */}
+      {/* Toast Notification */}
       {toastMessage && (
-        <div className="p-4 rounded-xl bg-emerald-950/90 border border-emerald-500 text-emerald-200 text-xs font-bold flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center space-x-2.5">
-            <Sparkles className="w-5 h-5 text-emerald-400 shrink-0" />
-            <span>{toastMessage}</span>
-          </div>
-          <button
-            type="button"
+        <div className="fixed top-5 right-5 z-50 p-4 rounded-2xl bg-emerald-950/95 border-2 border-emerald-400 text-emerald-200 text-xs font-bold shadow-2xl backdrop-blur-md flex items-center space-x-3 animate-in fade-in slide-in-from-top-4">
+          <Sparkles className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+          <button 
             onClick={() => setToastMessage(null)}
-            className="text-emerald-400 hover:text-white p-1"
+            className="p-1 rounded-lg hover:bg-emerald-900 text-emerald-300 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* 2. Metric Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-400">Total Audited</p>
-          <p className="text-2xl font-black text-emerald-400">{totalAudited}</p>
-          <p className="text-[10px] text-emerald-500/80 font-medium">✅ Verified quality</p>
+      {/* 1. Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-md shadow-emerald-950/40">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                <span>2. AUDITED LEADS (অডিটেড লিড)</span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  {underAuditLeads.length + readyForSalesLeads.length} Total
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400">
+                এখানে অডিটর অডিট শেষ করে <span className="text-emerald-400 font-bold">"Audit Complete"</span> মার্ক করবেন, এবং টিম লিডার সেলস মেম্বারকে ইমেইল/মেসেজ পাঠানোর জন্য নির্ধারণ করবেন।
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-400">Unassigned</p>
-          <p className="text-2xl font-black text-amber-400">{unassignedCount}</p>
-          <p className="text-[10px] text-amber-500/80 font-medium">Awaiting Sales Team</p>
-        </div>
-
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-400">Active in Cadence</p>
-          <p className="text-2xl font-black text-cyan-400">{totalInCadence}</p>
-          <p className="text-[10px] text-cyan-400/80 font-medium">In Today's Work queues</p>
-        </div>
-
-        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-400">Sales Members</p>
-          <p className="text-2xl font-black text-white">{teamMembers.length}</p>
-          <p className="text-[10px] text-slate-400 font-medium">Ready to receive leads</p>
+        {/* Top Link back to Lead Store */}
+        <div className="flex items-center space-x-2 shrink-0">
+          <Link
+            href="/lead-store"
+            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs border border-slate-700 flex items-center space-x-1.5 transition-all"
+          >
+            <Database className="w-4 h-4 text-cyan-400" />
+            <span>← 1. Lead Store</span>
+          </Link>
         </div>
       </div>
 
-      {/* 3. Filter & Search Bar */}
+      {/* 2. Primary Workflow Tabs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Tab 1: Under Audit */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('under_audit')}
+          className={`p-4 rounded-2xl border text-left transition-all active:scale-[0.99] flex items-center justify-between ${
+            activeTab === 'under_audit'
+              ? 'bg-amber-950/40 border-amber-500/80 ring-1 ring-amber-500/50 shadow-xl shadow-amber-950/30'
+              : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+          }`}
+        >
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <p className="text-sm font-black text-white">১. অডিট প্রক্রিয়াধীন (Under Audit Review)</p>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              মেম্বারদের অডিটের জন্য এসাইন করা লিড। অডিট শেষ হলে <strong className="text-amber-300">"Audit Complete"</strong> মার্ক করুন।
+            </p>
+          </div>
+          <span className={`text-2xl font-black px-3.5 py-1.5 rounded-xl border ml-3 shrink-0 ${
+            activeTab === 'under_audit'
+              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+              : 'bg-slate-950 text-amber-400 border-slate-800'
+          }`}>
+            {underAuditLeads.length}
+          </span>
+        </button>
+
+        {/* Tab 2: Ready for Sales Assignment */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('ready_for_sales')}
+          className={`p-4 rounded-2xl border text-left transition-all active:scale-[0.99] flex items-center justify-between ${
+            activeTab === 'ready_for_sales'
+              ? 'bg-emerald-950/40 border-emerald-500/80 ring-1 ring-emerald-500/50 shadow-xl shadow-emerald-950/30'
+              : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+          }`}
+        >
+          <div className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+              <p className="text-sm font-black text-white">২. অডিট সম্পন্ন - রেডি ফর সেলস (Ready for Sales)</p>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              অডিট কমপ্লিট লিডসমূহ। টিম লিডার এখান থেকে মেম্বারকে ইমেইল/মেসেজ পাঠানোর জন্য নির্ধারণ করবেন।
+            </p>
+          </div>
+          <span className={`text-2xl font-black px-3.5 py-1.5 rounded-xl border ml-3 shrink-0 ${
+            activeTab === 'ready_for_sales'
+              ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md'
+              : 'bg-slate-950 text-emerald-400 border-slate-800'
+          }`}>
+            {readyForSalesLeads.length}
+          </span>
+        </button>
+      </div>
+
+      {/* 3. Filter Bar & Search Box */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
         
-        {/* Filter by Assignee */}
-        <div className="flex items-center space-x-2">
-          <span className="text-xs font-semibold text-slate-400">Filter:</span>
-          <select
-            value={filterAssignee}
-            onChange={(e) => setFilterAssignee(e.target.value)}
-            className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-slate-200 focus:outline-none focus:border-emerald-500"
-          >
-            <option value="all">All Audited Leads ({totalAudited})</option>
-            <option value="unassigned">⏳ Unassigned Leads ({unassignedCount})</option>
-            {teamMembers.map(m => (
-              <option key={m.id} value={m.id}>
-                👤 {m.full_name}
-              </option>
-            ))}
-          </select>
+        {/* Status indicator */}
+        <div className="flex items-center space-x-2 text-xs font-semibold text-slate-300">
+          <Sparkles className="w-4 h-4 text-cyan-400" />
+          <span>
+            {activeTab === 'under_audit' 
+              ? 'অডিটর অডিট রিভিউ করে নিচের বাটনে ক্লিক করে কমপ্লিট করবেন।' 
+              : 'টিম লিডার মেম্বার ও মেসেজিং চ্যানেল (WhatsApp/Email) সিলেক্ট করে এসাইন করবেন।'}
+          </span>
         </div>
 
-        {/* Search Input */}
-        <div className="relative md:w-64">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search company, phone..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 text-slate-200 text-xs focus:outline-none"
-          />
+        {/* Channel Filters & Search */}
+        <div className="flex items-center space-x-2">
+          {/* Channel Filter */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+            <button
+              type="button"
+              onClick={() => setChannelFilter('all')}
+              className={`px-2 py-1 rounded-lg font-bold ${
+                channelFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              onClick={() => setChannelFilter('whatsapp')}
+              className={`px-2 py-1 rounded-lg font-bold flex items-center space-x-1 ${
+                channelFilter === 'whatsapp' ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/60' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <MessageSquare className="w-3 h-3 text-emerald-400" />
+              <span>WA</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setChannelFilter('email')}
+              className={`px-2 py-1 rounded-lg font-bold flex items-center space-x-1 ${
+                channelFilter === 'email' ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/60' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Mail className="w-3 h-3 text-cyan-400" />
+              <span>Email</span>
+            </button>
+          </div>
+
+          {/* Search Box */}
+          <div className="relative flex-1 md:w-56">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search company, phone..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-500 text-slate-200 text-xs focus:outline-none"
+            />
+          </div>
         </div>
       </div>
 
-      {/* 4. FLOATING / STICKY BULK ASSIGN BAR (When 1 or more leads are selected) */}
+      {/* 4. FLOATING / STICKY BULK ACTIONS BAR */}
       {selectedLeadIds.size > 0 && (
-        <div className="sticky top-4 z-30 p-3.5 rounded-2xl bg-emerald-950/95 border-2 border-emerald-400 text-white shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+        <div className="sticky top-4 z-30 p-3.5 rounded-2xl bg-slate-900 border-2 border-emerald-400 text-white shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-md">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-xs shadow-md">
               {selectedLeadIds.size}
             </div>
             <div>
               <p className="font-bold text-xs">
-                {selectedLeadIds.size} Audited Lead(s) Selected
+                {selectedLeadIds.size} Lead(s) Selected ({activeTab === 'under_audit' ? 'Under Audit' : 'Ready for Sales'})
               </p>
-              <p className="text-[10px] text-emerald-200">
-                একসাথে সিলেক্ট করা লিডগুলো যেকোনো সেলস টিম মেম্বারকে অ্যাসাইন করুন।
+              <p className="text-[10px] text-slate-300">
+                {activeTab === 'under_audit'
+                  ? 'সিলেক্ট করা লিডগুলোর অডিট একসাথে সম্পন্ন মার্ক করুন।'
+                  : 'টিম লিডার সিলেক্ট করা লিডগুলোকে একসাথে কোনো সেলস মেম্বারকে মেসেজ করতে এসাইন করুন।'}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Sales Member Selector */}
-            <div className="relative">
-              <select
-                value={bulkAssigneeId}
-                onChange={(e) => setBulkAssigneeId(e.target.value)}
-                className="px-3 py-1.5 pr-8 rounded-xl bg-slate-900 border border-emerald-500 text-xs font-bold text-white focus:outline-none"
+          <div className="flex items-center space-x-2">
+            {activeTab === 'under_audit' ? (
+              /* Bulk Pass Audit button */
+              <button
+                type="button"
+                onClick={handleBulkPassAudit}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
               >
-                <option value="">👤 Select Sales Member...</option>
-                {teamMembers.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.full_name} ({m.role.replace('_', ' ')})
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 text-emerald-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>✅ এক ক্লিকে অডিট কমপ্লিট করুন (Bulk Pass Audit)</span>
+              </button>
+            ) : (
+              /* Bulk Sales Assignment */
+              <div className="flex items-center space-x-2">
+                <select
+                  value={bulkSalesMemberId}
+                  onChange={(e) => setBulkSalesMemberId(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-slate-950 border border-emerald-500 text-xs font-bold text-white focus:outline-none"
+                >
+                  <option value="">👤 সেলস মেম্বার সিলেক্ট করুন...</option>
+                  {teamMembers.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
+                    </option>
+                  ))}
+                </select>
 
-            {/* Assign Button */}
-            <button
-              type="button"
-              onClick={handleBulkAssign}
-              disabled={!bulkAssigneeId}
-              className="px-4 py-1.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 disabled:opacity-40 text-slate-950 font-black text-xs shadow-md shadow-emerald-400/20 active:scale-95 transition-all flex items-center space-x-1.5"
-            >
-              <span>🚀 Assign to Sales Member</span>
-            </button>
+                <select
+                  value={bulkChannel}
+                  onChange={(e) => setBulkChannel(e.target.value as OutreachChannel)}
+                  className="px-3 py-2 rounded-xl bg-slate-950 border border-emerald-500 text-xs font-bold text-white focus:outline-none"
+                >
+                  <option value="whatsapp">WhatsApp 💬</option>
+                  <option value="email">Email ✉️</option>
+                </select>
 
-            {/* Deselect All */}
+                <button
+                  type="button"
+                  onClick={handleBulkAssignSales}
+                  disabled={!bulkSalesMemberId}
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>🚀 সেলস মেসেজিংয়ে পাঠান</span>
+                </button>
+              </div>
+            )}
+
+            {/* Clear selection */}
             <button
               type="button"
               onClick={() => setSelectedLeadIds(new Set())}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
             >
               Cancel
             </button>
@@ -340,57 +446,71 @@ export default function AuditedLeadsPage() {
         </div>
       )}
 
-      {/* 5. Audited Leads Table */}
+      {/* 5. Main Audited Leads Table */}
       <div className="rounded-2xl border border-slate-800 bg-slate-950/80 shadow-2xl overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[850px]">
+        <table className="w-full text-left border-collapse min-w-[950px]">
           <thead>
             <tr className="border-b border-slate-800/80 bg-slate-900/90 text-slate-400 font-extrabold text-[11px] uppercase tracking-wider">
               {/* Select All Checkbox */}
               <th className="py-4 px-4 w-12 text-center">
                 <input
                   type="checkbox"
-                  checked={auditedLeads.length > 0 && selectedLeadIds.size === auditedLeads.length}
+                  checked={displayedLeads.length > 0 && selectedLeadIds.size === displayedLeads.length}
                   onChange={handleToggleSelectAll}
                   className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-0 cursor-pointer"
-                  title="Select / Deselect All Audited Leads"
+                  title="Select / Deselect All Visible Leads"
                 />
               </th>
-              <th className="py-4 px-4">COMPANY & CONTACT</th>
-              <th className="py-4 px-4">AUDIT STATUS</th>
+              <th className="py-4 px-4">COMPANY & WEBSITE</th>
+              <th className="py-4 px-4">COUNTRY & TIME</th>
               <th className="py-4 px-4">CHANNEL CONTACT</th>
-              <th className="py-4 px-4">ASSIGN TO SALES MEMBER</th>
-              <th className="py-4 px-5 text-right">ACTIONS</th>
+              <th className="py-4 px-4">
+                {activeTab === 'under_audit' ? 'ASSIGNED AUDITOR' : 'AUDITED BY'}
+              </th>
+              <th className="py-4 px-5 text-right">
+                {activeTab === 'under_audit' ? 'AUDIT ACTION (অডিট সম্পন্ন)' : 'ASSIGN TO SALES MEMBER (মেসেজ পাঠাতে এসাইন)'}
+              </th>
             </tr>
           </thead>
 
           <tbody className="divide-y divide-slate-800/60 text-xs">
-            {auditedLeads.length === 0 ? (
+            {displayedLeads.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-12 text-center text-slate-500 text-xs">
                   <div className="max-w-sm mx-auto space-y-2">
-                    <p className="text-sm font-bold text-slate-300">No Audited Leads Available</p>
-                    <p className="text-xs text-slate-500">
-                      Go to the Lead Store to inspect raw leads and mark them as audit completed.
+                    <p className="text-sm font-bold text-slate-300">
+                      {activeTab === 'under_audit' 
+                        ? 'অডিট প্রক্রিয়াধীন কোনো লিড নেই' 
+                        : 'রেডি ফর সেলস কিউতে কোনো লিড নেই'}
                     </p>
-                    <Link
-                      href="/lead-store"
-                      className="inline-block mt-2 px-3 py-1.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
-                    >
-                      ← Go to Lead Store
-                    </Link>
+                    <p className="text-xs text-slate-500">
+                      {activeTab === 'under_audit'
+                        ? 'লিড স্টোর থেকে কোনো মেম্বারকে অডিটের জন্য নির্ধারণ করুন।'
+                        : 'অডিট রিভিউ সম্পন্ন হলে লিডগুলো এখানে সেলস এসাইনমেন্টের জন্য জমা হবে।'}
+                    </p>
+                    {activeTab === 'under_audit' && (
+                      <Link
+                        href="/lead-store"
+                        className="inline-block mt-2 px-3.5 py-1.5 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs"
+                      >
+                        ← Go to Lead Store
+                      </Link>
+                    )}
                   </div>
                 </td>
               </tr>
             ) : (
-              auditedLeads.map((lead) => {
+              displayedLeads.map((lead) => {
                 const country = (lead.phone ? detectCountryFromPhone(lead.phone) : null) || COUNTRY_CODES[0];
                 const { timeString, isBusinessHours } = mounted 
                   ? getCountryLocalTime(country.code) 
                   : { timeString: '1:34 PM', isBusinessHours: true };
 
                 const isSelected = selectedLeadIds.has(lead.id);
-                const hunter = teamMembers.find(m => m.id === lead.original_hunter_id);
-                const assignee = teamMembers.find(m => m.id === lead.current_assignee_id);
+                const auditor = teamMembers.find(m => m.id === (lead.auditor_id || lead.current_assignee_id));
+                const auditorApprover = teamMembers.find(m => m.id === lead.approved_by);
+
+                const selectedRowChannel = rowSalesChannels[lead.id] || lead.channel || 'whatsapp';
 
                 const waPitchMessage = `Hi, regarding your brand ${lead.company_name}: We noticed your ads are scaling and prepared a creative inject tear-sheet. Open to a 2-min review?`;
                 const waUrl = lead.phone ? getWhatsAppUrl(lead.phone, waPitchMessage) : '#';
@@ -413,11 +533,13 @@ export default function AuditedLeadsPage() {
                       />
                     </td>
 
-                    {/* Company & Contact */}
-                    <td className="py-4 px-4 align-middle max-w-[240px]">
-                      <div className="space-y-1">
-                        <div className="font-bold text-white text-sm group-hover:text-emerald-400 transition-colors line-clamp-1">
-                          {lead.company_name}
+                    {/* Company & Website */}
+                    <td className="py-4 px-4 align-middle">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="font-bold text-white group-hover:text-emerald-400 transition-colors">
+                            {lead.company_name}
+                          </span>
                         </div>
                         {lead.website && (
                           <a
@@ -425,30 +547,25 @@ export default function AuditedLeadsPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-[11px] text-slate-400 hover:text-emerald-400 font-mono flex items-center space-x-1"
+                            className="text-[11px] text-slate-400 hover:text-emerald-400 inline-flex items-center space-x-1"
                           >
-                            <ExternalLink className="w-3 h-3 shrink-0" />
-                            <span className="truncate max-w-[180px]">{lead.website.replace(/^https?:\/\//, '')}</span>
+                            <span className="truncate max-w-[160px]">{lead.website.replace(/^https?:\/\//, '')}</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         )}
-                        <div className="text-[10px] text-slate-500 flex items-center space-x-1 pt-0.5 font-medium">
-                          <span>👤 Contact: {lead.contact_name || 'Owner'}</span>
-                          <span>•</span>
-                          <span>Hunter: {hunter?.full_name || 'Direct'}</span>
-                        </div>
                       </div>
                     </td>
 
-                    {/* Audit Details */}
+                    {/* Country & Local Time */}
                     <td className="py-4 px-4 align-middle">
-                      <div className="space-y-1.5">
-                        <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/60 text-emerald-300 text-[11px] font-black uppercase tracking-wider">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Audit Passed</span>
+                      <div className="space-y-1">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900 border border-slate-700 text-slate-300">
+                          {country.flag} {country.name}
                         </span>
-                        <div className="text-[10px] text-slate-400 flex items-center space-x-1 font-mono">
-                          <span>🗓️</span>
-                          <span>{lead.approved_at ? lead.approved_at.slice(0, 10) : '2026-10-18'}</span>
+                        <div className="flex items-center space-x-1 text-[11px] text-slate-400 font-mono">
+                          <Clock className="w-3 h-3 text-emerald-400" />
+                          <span>{timeString}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isBusinessHours ? 'bg-emerald-400' : 'bg-slate-600'}`} />
                         </div>
                       </div>
                     </td>
@@ -477,45 +594,95 @@ export default function AuditedLeadsPage() {
                       )}
                     </td>
 
-                    {/* Assign to Sales Member Dropdown */}
-                    <td className="py-4 px-4 align-middle" onClick={(e) => e.stopPropagation()}>
-                      <div className="space-y-1">
-                        <div className="relative">
-                          <select
-                            value={lead.current_assignee_id || ''}
-                            onChange={(e) => handleSingleAssign(lead.id, e.target.value)}
-                            className={`w-full px-2.5 py-1.5 pr-7 rounded-xl text-xs font-bold appearance-none focus:outline-none transition-all cursor-pointer ${
-                              !lead.current_assignee_id
-                                ? 'bg-amber-950/80 border-2 border-amber-500 text-amber-200 ring-2 ring-amber-500/30'
-                                : 'bg-slate-900 border border-slate-700 text-emerald-300'
-                            }`}
-                          >
-                            <option value="">👤 Select Member to Assign...</option>
-                            {teamMembers.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.full_name} ({m.role.replace('_', ' ')})
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        </div>
-
-                        {assignee ? (
-                          <div className="text-[10px] text-emerald-400 font-semibold flex items-center space-x-1 pl-1">
-                            <UserCheck className="w-3 h-3" />
-                            <span>Live in {assignee.full_name}'s queue</span>
+                    {/* Assigned Auditor or Audited By */}
+                    <td className="py-4 px-4 align-middle">
+                      {activeTab === 'under_audit' ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-bold text-[10px] text-amber-300">
+                            {auditor?.full_name?.charAt(0) || 'A'}
                           </div>
-                        ) : (
-                          <span className="text-[10px] text-amber-400 font-semibold pl-1">
-                            ⏳ Waiting for TL assignment
-                          </span>
-                        )}
-                      </div>
+                          <div>
+                            <span className="font-bold text-amber-300 block">
+                              {auditor?.full_name || 'Assigned Auditor'}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              🔍 অডিট পর্যালোচনা চলছে
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-bold text-[10px] text-emerald-300">
+                            {auditorApprover?.full_name?.charAt(0) || auditor?.full_name?.charAt(0) || '✓'}
+                          </div>
+                          <div>
+                            <span className="font-bold text-emerald-300 block">
+                              {auditorApprover?.full_name || auditor?.full_name || 'Auditor Verified'}
+                            </span>
+                            <span className="text-[10px] text-emerald-500 font-mono">
+                              ✓ Verified Audited
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </td>
 
-                    {/* Actions */}
+                    {/* Actions Column */}
                     <td className="py-4 px-5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end space-x-2">
+                        
+                        {activeTab === 'under_audit' ? (
+                          /* TAB 1 ACTION: Auditor clicks "Audit Complete" */
+                          <button
+                            type="button"
+                            onClick={() => handleSinglePassAudit(lead.id)}
+                            className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 flex items-center space-x-1.5 transition-all active:scale-95"
+                            title="অডিট সম্পন্ন করুন এবং রেডি ফর সেলস কিউতে পাঠান"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>Audit Complete</span>
+                          </button>
+                        ) : (
+                          /* TAB 2 ACTION: Team Leader assigns to a Sales Member for Messaging */
+                          <div className="flex items-center space-x-1.5">
+                            
+                            {/* Channel Toggle */}
+                            <select
+                              value={selectedRowChannel}
+                              onChange={(e) => {
+                                setRowSalesChannels(prev => ({
+                                  ...prev,
+                                  [lead.id]: e.target.value as OutreachChannel
+                                }));
+                              }}
+                              className="px-2 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 text-[11px] font-bold focus:outline-none"
+                            >
+                              <option value="whatsapp">WA 💬</option>
+                              <option value="email">Email ✉️</option>
+                            </select>
+
+                            {/* Member Dropdown */}
+                            <select
+                              defaultValue=""
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleSingleAssignSales(lead.id, e.target.value);
+                                  e.target.value = '';
+                                }
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-emerald-500/60 hover:border-emerald-400 text-xs font-bold text-emerald-300 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer transition-all shadow-md shadow-emerald-950/30"
+                              title="মেসেজ পাঠানোর জন্য সেলস মেম্বার নির্বাচন করুন"
+                            >
+                              <option value="" disabled>🚀 সেলস মেম্বার নির্ধারণ করুন...</option>
+                              {teamMembers.map(m => (
+                                <option key={m.id} value={m.id}>
+                                  {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
                         {/* Clock button for timeline */}
                         <button
                           type="button"
@@ -529,7 +696,7 @@ export default function AuditedLeadsPage() {
                           <Clock className="w-3.5 h-3.5" />
                         </button>
 
-                        {/* Note Button */}
+                        {/* Add Note Button */}
                         <button
                           type="button"
                           onClick={() => {
@@ -537,7 +704,7 @@ export default function AuditedLeadsPage() {
                             setQuickNoteText('');
                           }}
                           className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 transition-all"
-                          title="Add Note"
+                          title="Add Quick Note"
                         >
                           <FileText className="w-3.5 h-3.5" />
                         </button>
@@ -564,7 +731,7 @@ export default function AuditedLeadsPage() {
             <div className="flex items-start justify-between">
               <div className="flex items-center space-x-2 text-emerald-400">
                 <FileText className="w-5 h-5" />
-                <h3 className="text-sm font-bold text-white">Add Note to Audited Lead</h3>
+                <h3 className="text-sm font-bold text-white">Add Note to Lead</h3>
               </div>
               <button 
                 onClick={() => setNoteModalLead(null)}
@@ -583,8 +750,8 @@ export default function AuditedLeadsPage() {
               autoFocus
               value={quickNoteText}
               onChange={(e) => setQuickNoteText(e.target.value)}
-              placeholder="Write note or sales instructions for the assigned member..."
-              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 text-slate-200 text-xs focus:outline-none"
+              placeholder="Write note or feedback for this lead..."
+              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-cyan-500 text-slate-200 text-xs focus:outline-none"
             />
 
             <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
@@ -634,7 +801,7 @@ export default function AuditedLeadsPage() {
                       {lead.company_name} - Timeline
                     </h3>
                     <p className="text-[11px] text-slate-400">
-                      Stage: <strong className="text-emerald-300">Audited Lead</strong>
+                      Stage: <strong className="text-purple-300 capitalize">{lead.stage.replace('_', ' ')}</strong>
                     </p>
                   </div>
                 </div>
@@ -657,7 +824,7 @@ export default function AuditedLeadsPage() {
                       value={timelineQuickNote}
                       onChange={(e) => setTimelineQuickNote(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSaveTimelineNote()}
-                      placeholder="Write an instruction or update..."
+                      placeholder="Write a note..."
                       className="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-200 text-xs focus:outline-none focus:border-purple-500"
                     />
                     <button

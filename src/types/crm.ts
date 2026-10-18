@@ -64,11 +64,16 @@ export interface Lead {
   // Attribution & Ownership
   original_hunter_id: string;
   current_assignee_id?: string;
+  auditor_id?: string;
   hunter?: TeamMember;
   assignee?: TeamMember;
+  auditor?: TeamMember;
   
-  // Approval Gate & Trusted Mode
+  // Approval Gate & Quality Audit
   is_audit_sample: boolean;
+  audited_at?: string;
+  audited_by?: string;
+  audit_notes?: string;
   approved_at?: string;
   approved_by?: string;
   
@@ -100,7 +105,7 @@ export interface LeadActivity {
   id: string;
   lead_id: string;
   author_id: string;
-  activity_type: 'note' | 'cadence_advance' | 'status_change' | 'approval' | 'rejection' | 'dnc' | 'mistake' | 'callback_scheduled';
+  activity_type: 'note' | 'cadence_advance' | 'status_change' | 'approval' | 'rejection' | 'dnc' | 'mistake' | 'callback_scheduled' | 'audit_assigned' | 'audit_completed' | 'sales_assigned';
   content: string;
   mentions?: string[]; // user IDs
   created_at: string;

@@ -66,8 +66,8 @@ export function Sidebar({
 
   // Counters
   const todayDueCount = leads.filter(l => l.stage === 'contacted' || l.stage === 'approved').length;
-  const leadStoreCount = leads.filter(l => l.stage === 'lead_added' || l.stage === 'audit').length;
-  const auditedLeadCount = leads.filter(l => l.stage === 'audited').length;
+  const leadStoreCount = leads.filter(l => l.stage === 'lead_added').length;
+  const auditedLeadCount = leads.filter(l => l.stage === 'audit' || l.stage === 'audited').length;
   const pipelineCount = leads.filter(l => ['audit', 'sales_pipeline'].includes(l.stage)).length;
   const duplicateCount = retroactiveDuplicates.length;
 

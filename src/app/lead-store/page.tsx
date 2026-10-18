@@ -11,7 +11,6 @@ import {
   Database, 
   Plus, 
   UploadCloud, 
-  CheckCircle2, 
   Search, 
   Filter, 
   MessageSquare, 
@@ -19,15 +18,16 @@ import {
   Clock, 
   Check, 
   ArrowRight, 
-  ShieldAlert, 
   FileText, 
   ExternalLink, 
   ChevronRight,
   Zap,
-  RotateCcw,
   UserCheck,
   X,
-  Send
+  Send,
+  Sparkles,
+  Users,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function LeadStorePage() {
@@ -35,10 +35,8 @@ export default function LeadStorePage() {
     leads, 
     currentUser, 
     teamMembers, 
-    sendToAudit, 
-    passAudit, 
-    bulkSendToAudit, 
-    bulkPassAudit, 
+    assignAuditor,
+    bulkAssignAuditor,
     setIsCreateModalOpen, 
     setIsBatchModalOpen, 
     addActivityNote,
@@ -47,10 +45,11 @@ export default function LeadStorePage() {
     setIsLeadDrawerOpen
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'all' | 'raw' | 'in_audit'>('all');
   const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'email'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [bulkAuditorId, setBulkAuditorId] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Note Modal state
   const [noteModalLead, setNoteModalLead] = useState<Lead | null>(null);
@@ -66,17 +65,19 @@ export default function LeadStorePage() {
     setMounted(true);
   }, []);
 
-  // Filter leads in Lead Store:
-  // Lead Store contains leads that are newly added ('lead_added') or currently undergoing audit ('audit' / 'pending_approval')
+  // Toast auto-clear
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  // Lead Store contains raw collected leads ('lead_added') waiting for audit assignment
   const storeLeads = useMemo(() => {
     return leads.filter(l => {
-      // Must be in lead store stages
-      const isInStore = l.stage === 'lead_added' || l.stage === 'audit' || l.stage === 'pending_approval';
-      if (!isInStore) return false;
-
-      // Tab filter
-      if (activeTab === 'raw' && l.stage !== 'lead_added') return false;
-      if (activeTab === 'in_audit' && l.stage !== 'audit' && l.stage !== 'pending_approval') return false;
+      // Must be newly added raw lead
+      if (l.stage !== 'lead_added') return false;
 
       // Channel filter
       if (channelFilter === 'whatsapp' && l.channel !== 'whatsapp') return false;
@@ -97,13 +98,13 @@ export default function LeadStorePage() {
 
       return true;
     });
-  }, [leads, activeTab, channelFilter, searchQuery]);
+  }, [leads, channelFilter, searchQuery]);
 
   // Overall counts
-  const totalStoreCount = leads.filter(l => l.stage === 'lead_added' || l.stage === 'audit' || l.stage === 'pending_approval').length;
-  const rawCount = leads.filter(l => l.stage === 'lead_added').length;
-  const inAuditCount = leads.filter(l => l.stage === 'audit' || l.stage === 'pending_approval').length;
-  const auditedCount = leads.filter(l => l.stage === 'audited').length;
+  const totalStoreCount = leads.filter(l => l.stage === 'lead_added').length;
+  const underAuditCount = leads.filter(l => l.stage === 'audit').length;
+  const auditPassedCount = leads.filter(l => l.stage === 'audited').length;
+  const totalAuditedPool = underAuditCount + auditPassedCount;
 
   // Toggle single lead selection
   const handleToggleSelect = (leadId: string) => {
@@ -127,73 +128,93 @@ export default function LeadStorePage() {
     }
   };
 
-  // Bulk Assign for Audit
-  const handleBulkSendToAudit = () => {
-    if (selectedLeadIds.size === 0) return;
-    bulkSendToAudit(Array.from(selectedLeadIds));
-    setSelectedLeadIds(new Set());
+  // Single Assign for Audit: Immediately moves lead to Audited Lead section!
+  const handleSingleAssignAuditor = (leadId: string, auditorId: string) => {
+    if (!auditorId) return;
+    const auditor = teamMembers.find(m => m.id === auditorId);
+    const lead = leads.find(l => l.id === leadId);
+    
+    assignAuditor(leadId, auditorId);
+    setToastMessage(`🔍 "${lead?.company_name || 'Lead'}" সফলভাবে ${auditor?.full_name}-কে অডিটের জন্য এসাইন করা হয়েছে এবং "2. Audited Lead" সেকশনে পাঠানো হয়েছে!`);
   };
 
-  // Bulk Audit Complete (Moves to Audited Lead)
-  const handleBulkPassAudit = () => {
-    if (selectedLeadIds.size === 0) return;
-    bulkPassAudit(Array.from(selectedLeadIds));
+  // Bulk Assign for Audit: Immediately moves selected leads to Audited Lead section!
+  const handleBulkAssignAuditor = () => {
+    if (selectedLeadIds.size === 0 || !bulkAuditorId) return;
+    const auditor = teamMembers.find(m => m.id === bulkAuditorId);
+    const count = selectedLeadIds.size;
+
+    bulkAssignAuditor(Array.from(selectedLeadIds), bulkAuditorId);
+    setToastMessage(`🚀 ${count}টি লিড সফলভাবে ${auditor?.full_name}-কে অডিটের জন্য এসাইন করা হয়েছে এবং "2. Audited Lead" সেকশনে পাঠানো হয়েছে!`);
+    
     setSelectedLeadIds(new Set());
+    setBulkAuditorId('');
   };
 
-  // Quick single note save
+  // Save quick note
   const handleSaveNote = () => {
     if (!noteModalLead || !quickNoteText.trim()) return;
     addActivityNote(noteModalLead.id, quickNoteText.trim(), [], 'note');
-    setQuickNoteText('');
     setNoteModalLead(null);
-    soundEngine.playMentionChime();
+    setQuickNoteText('');
+    soundEngine.playSuccessChime();
   };
 
-  // Timeline note save
-  const handleSaveTimelineNote = (chipText?: string) => {
-    const textToSave = chipText || timelineQuickNote;
-    if (!timelineModalLead || !textToSave.trim()) return;
-    addActivityNote(timelineModalLead.id, textToSave.trim(), [], 'note');
-    if (!chipText) setTimelineQuickNote('');
-    soundEngine.playMentionChime();
+  // Save timeline note
+  const handleSaveTimelineNote = () => {
+    if (!timelineModalLead || !timelineQuickNote.trim()) return;
+    addActivityNote(timelineModalLead.id, timelineQuickNote.trim(), [], 'note');
+    setTimelineQuickNote('');
+    soundEngine.playSuccessChime();
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1600px] mx-auto min-h-full">
       
-      {/* 1. Header Banner & Action Bar */}
-      <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-xl bg-cyan-500/15 border border-cyan-500/40 text-cyan-400">
-              <Database className="w-6 h-6" />
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed top-5 right-5 z-50 p-4 rounded-2xl bg-cyan-950/95 border-2 border-cyan-400 text-cyan-200 text-xs font-bold shadow-2xl backdrop-blur-md flex items-center space-x-3 animate-in fade-in slide-in-from-top-4">
+          <Sparkles className="w-5 h-5 text-cyan-400 shrink-0" />
+          <span>{toastMessage}</span>
+          <button 
+            onClick={() => setToastMessage(null)}
+            className="p-1 rounded-lg hover:bg-cyan-900 text-cyan-300 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* 1. Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-center text-cyan-400 shadow-md shadow-cyan-950/40">
+              <Database className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-black text-white tracking-wide">
-                  Lead Store (লিড স্টোর)
-                </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-cyan-950 border border-cyan-500/50 text-cyan-300">
-                  {totalStoreCount} Leads
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center space-x-2">
+                <span>1. LEAD STORE</span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-cyan-950 text-cyan-300 border border-cyan-800">
+                  {totalStoreCount} Raw Leads
                 </span>
-              </div>
+              </h1>
               <p className="text-xs text-slate-400">
-                সকল কালেক্ট হওয়া লিড এখানে জমা থাকে। লিডার এক বা একাধিক লিড সিলেক্ট করে অডিটের জন্য পাঠাতে পারেন।
+                কালেক্ট করা লিডগুলো এখানে জমা থাকে। টিম লিডার যেকোনো মেম্বারকে অডিটের জন্য নির্ধারণ (Assign for Audit) করবেন।
               </p>
             </div>
           </div>
         </div>
 
-        {/* Quick Add / Upload & Audited Lead Link */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Action Buttons */}
+        <div className="flex items-center space-x-2 shrink-0">
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
-            className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
+            className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Add Lead</span>
+            <span>Add New Lead</span>
           </button>
 
           <button
@@ -207,10 +228,10 @@ export default function LeadStorePage() {
 
           <Link
             href="/audited-leads"
-            className="px-3.5 py-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900/80 text-cyan-300 font-bold text-xs border border-cyan-600/50 flex items-center space-x-1.5 transition-all"
+            className="px-3.5 py-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900/80 text-cyan-300 font-bold text-xs border border-cyan-600/50 flex items-center space-x-1.5 transition-all group"
           >
-            <span>Audited Leads ({auditedCount})</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>2. Audited Leads ({totalAuditedPool})</span>
+            <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
       </div>
@@ -218,21 +239,25 @@ export default function LeadStorePage() {
       {/* 2. Summary Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-400">Total in Store</p>
+          <p className="text-[11px] font-semibold text-slate-400">Total in Lead Store</p>
           <p className="text-2xl font-black text-white">{totalStoreCount}</p>
-          <p className="text-[10px] text-cyan-400 font-medium">📥 Stored contacts</p>
+          <p className="text-[10px] text-cyan-400 font-medium">📥 Raw collected contacts</p>
         </div>
 
         <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-400">Raw / Unassigned</p>
-          <p className="text-2xl font-black text-blue-400">{rawCount}</p>
-          <p className="text-[10px] text-slate-500 font-medium">Ready for audit</p>
+          <p className="text-[11px] font-semibold text-slate-400">WhatsApp Leads</p>
+          <p className="text-2xl font-black text-emerald-400">
+            {storeLeads.filter(l => l.channel === 'whatsapp').length}
+          </p>
+          <p className="text-[10px] text-emerald-500/80 font-medium">💬 Mobile verified</p>
         </div>
 
         <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
-          <p className="text-[11px] font-semibold text-slate-400">Under Audit Review</p>
-          <p className="text-2xl font-black text-amber-400">{inAuditCount}</p>
-          <p className="text-[10px] text-amber-500/80 font-medium">🔍 Being inspected</p>
+          <p className="text-[11px] font-semibold text-slate-400">Email Leads</p>
+          <p className="text-2xl font-black text-blue-400">
+            {storeLeads.filter(l => l.channel === 'email').length}
+          </p>
+          <p className="text-[10px] text-blue-400/80 font-medium">✉️ Business inbox</p>
         </div>
 
         <Link 
@@ -240,54 +265,21 @@ export default function LeadStorePage() {
           className="p-4 rounded-xl bg-emerald-950/30 border border-emerald-600/50 hover:bg-emerald-950/50 transition-all space-y-1 group"
         >
           <p className="text-[11px] font-semibold text-emerald-400 flex items-center justify-between">
-            <span>Audit Passed</span>
+            <span>Dispatched to Audit</span>
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
           </p>
-          <p className="text-2xl font-black text-emerald-300">{auditedCount}</p>
-          <p className="text-[10px] text-emerald-500/90 font-bold">Ready for Sales Assignment →</p>
+          <p className="text-2xl font-black text-emerald-300">{totalAuditedPool}</p>
+          <p className="text-[10px] text-emerald-500/90 font-bold">Open Audited Leads Queue →</p>
         </Link>
       </div>
 
-      {/* 3. Filter Tabs & Search Bar */}
+      {/* 3. Filter Bar & Search Box */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
         
-        {/* Stage Filter Tabs */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 md:pb-0">
-          <button
-            type="button"
-            onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-              activeTab === 'all'
-                ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/20'
-                : 'bg-slate-950 text-slate-400 hover:text-white'
-            }`}
-          >
-            All Stored ({totalStoreCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('raw')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-              activeTab === 'raw'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                : 'bg-slate-950 text-slate-400 hover:text-white'
-            }`}
-          >
-            📥 Raw Leads ({rawCount})
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('in_audit')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-              activeTab === 'in_audit'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
-                : 'bg-slate-950 text-slate-400 hover:text-white'
-            }`}
-          >
-            🔍 In Audit Review ({inAuditCount})
-          </button>
+        {/* Helper Badge */}
+        <div className="flex items-center space-x-2 text-xs text-slate-300 font-medium">
+          <Sparkles className="w-4 h-4 text-amber-400" />
+          <span>অডিটের জন্য কোনো মেম্বারকে নির্ধারণ করলেই লিডটি সাথে সাথে <strong>Audited Lead</strong> সেকশনে চলে যাবে।</span>
         </div>
 
         {/* Channel Filters & Search */}
@@ -341,46 +333,52 @@ export default function LeadStorePage() {
 
       {/* 4. FLOATING / STICKY BULK ACTIONS BAR (When 1 or more leads are selected) */}
       {selectedLeadIds.size > 0 && (
-        <div className="sticky top-4 z-30 p-3 rounded-2xl bg-cyan-950/95 border-2 border-cyan-400 text-white shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+        <div className="sticky top-4 z-30 p-3.5 rounded-2xl bg-cyan-950/95 border-2 border-cyan-400 text-white shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center space-x-3">
-            <div className="w-7 h-7 rounded-lg bg-cyan-500 text-slate-950 font-black flex items-center justify-center text-xs">
+            <div className="w-8 h-8 rounded-xl bg-cyan-500 text-slate-950 font-black flex items-center justify-center text-xs shadow-md">
               {selectedLeadIds.size}
             </div>
             <div>
               <p className="font-bold text-xs">
-                {selectedLeadIds.size} Lead(s) Selected
+                {selectedLeadIds.size} Lead(s) Selected for Audit Assignment
               </p>
               <p className="text-[10px] text-cyan-200">
-                এক বা একাধিক লিড একসাথে অডিটে পাঠান অথবা অডিট কমপ্লিট করুন।
+                এক বা একাধিক লিড সিলেক্ট করে একসাথে কোনো মেম্বারকে অডিটের জন্য নির্ধারণ করুন।
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Button: Send Selected to Audit */}
-            <button
-              type="button"
-              onClick={handleBulkSendToAudit}
-              className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
+            {/* Auditor Selector */}
+            <select
+              value={bulkAuditorId}
+              onChange={(e) => setBulkAuditorId(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-slate-900 border border-cyan-400 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-cyan-300 cursor-pointer"
             >
-              <span>🔍 Assign for Audit</span>
-            </button>
+              <option value="">👤 অডিটের জন্য মেম্বার সিলেক্ট করুন...</option>
+              {teamMembers.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
+                </option>
+              ))}
+            </select>
 
-            {/* Button: Complete Audit & Move to Audited Leads */}
+            {/* Button: Assign Selected to Audit */}
             <button
               type="button"
-              onClick={handleBulkPassAudit}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
+              onClick={handleBulkAssignAuditor}
+              disabled={!bulkAuditorId}
+              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
             >
-              <Check className="w-3.5 h-3.5 stroke-[3]" />
-              <span>✅ Complete Audit (Move to Audited)</span>
+              <UserCheck className="w-4 h-4 stroke-[2.5]" />
+              <span>🔍 অডিটে পাঠান (Assign for Audit)</span>
             </button>
 
             {/* Clear selection */}
             <button
               type="button"
               onClick={() => setSelectedLeadIds(new Set())}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
             >
               Cancel
             </button>
@@ -390,7 +388,7 @@ export default function LeadStorePage() {
 
       {/* 5. Stored Leads Table */}
       <div className="rounded-2xl border border-slate-800 bg-slate-950/80 shadow-2xl overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[850px]">
+        <table className="w-full text-left border-collapse min-w-[900px]">
           <thead>
             <tr className="border-b border-slate-800/80 bg-slate-900/90 text-slate-400 font-extrabold text-[11px] uppercase tracking-wider">
               {/* Select All Checkbox */}
@@ -406,8 +404,8 @@ export default function LeadStorePage() {
               <th className="py-4 px-4">COMPANY & WEBSITE</th>
               <th className="py-4 px-4">COUNTRY & TIME</th>
               <th className="py-4 px-4">CHANNEL CONTACT</th>
-              <th className="py-4 px-4">STORE STAGE</th>
-              <th className="py-4 px-5 text-right">AUDIT ACTIONS</th>
+              <th className="py-4 px-4">COLLECTED BY (HUNTER)</th>
+              <th className="py-4 px-5 text-right">ASSIGN AUDITOR (অডিট নির্ধারণ)</th>
             </tr>
           </thead>
 
@@ -416,9 +414,9 @@ export default function LeadStorePage() {
               <tr>
                 <td colSpan={6} className="py-12 text-center text-slate-500 text-xs">
                   <div className="max-w-sm mx-auto space-y-2">
-                    <p className="text-sm font-bold text-slate-300">No leads in this Store queue</p>
+                    <p className="text-sm font-bold text-slate-300">লিড স্টোরে কোনো পেন্ডিং লিড নেই</p>
                     <p className="text-xs text-slate-500">
-                      Upload or add leads to populate the Lead Store, then assign them for audit.
+                      সকল কালেক্ট করা লিড অডিটের জন্য এসাইন করা হয়ে গেছে। নতুন লিড যুক্ত করতে বা ইমপোর্ট করতে পারেন।
                     </p>
                     <button
                       type="button"
@@ -462,10 +460,12 @@ export default function LeadStorePage() {
                     </td>
 
                     {/* Company & Website */}
-                    <td className="py-4 px-4 align-middle max-w-[240px]">
-                      <div className="space-y-1">
-                        <div className="font-bold text-white text-sm group-hover:text-cyan-400 transition-colors line-clamp-1">
-                          {lead.company_name}
+                    <td className="py-4 px-4 align-middle">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-1.5">
+                          <span className="font-bold text-white group-hover:text-cyan-400 transition-colors">
+                            {lead.company_name}
+                          </span>
                         </div>
                         {lead.website && (
                           <a
@@ -473,35 +473,25 @@ export default function LeadStorePage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="text-[11px] text-slate-400 hover:text-emerald-400 font-mono flex items-center space-x-1"
+                            className="text-[11px] text-slate-400 hover:text-cyan-400 inline-flex items-center space-x-1"
                           >
-                            <ExternalLink className="w-3 h-3 shrink-0" />
-                            <span className="truncate max-w-[180px]">{lead.website.replace(/^https?:\/\//, '')}</span>
+                            <span className="truncate max-w-[160px]">{lead.website.replace(/^https?:\/\//, '')}</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         )}
-                        <div className="text-[10px] text-slate-500 flex items-center space-x-1 pt-0.5 font-medium">
-                          <span>👤 Hunter: {hunter?.full_name || 'Direct'}</span>
-                          <span>•</span>
-                          <span>{lead.created_at ? lead.created_at.slice(0, 10) : '2026-10-18'}</span>
-                        </div>
                       </div>
                     </td>
 
-                    {/* Country & Time */}
+                    {/* Country & Local Time */}
                     <td className="py-4 px-4 align-middle">
-                      <div className="space-y-1.5">
-                        <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-[#0a1f18] border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">
-                          <span>{country.code}</span>
-                          <span>{country.name}</span>
-                        </div>
-                        <div className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-[#081f26] border border-cyan-500/40 text-cyan-300 text-[11px] font-mono font-semibold">
+                      <div className="space-y-1">
+                        <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-900 border border-slate-700 text-slate-300">
+                          {country.flag} {country.name}
+                        </span>
+                        <div className="flex items-center space-x-1 text-[11px] text-slate-400 font-mono">
                           <Clock className="w-3 h-3 text-cyan-400" />
                           <span>{timeString}</span>
-                          <span 
-                            className={`w-2 h-2 rounded-full shrink-0 ${
-                              isBusinessHours ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
-                            }`}
-                          />
+                          <span className={`w-1.5 h-1.5 rounded-full ${isBusinessHours ? 'bg-emerald-400' : 'bg-slate-600'}`} />
                         </div>
                       </div>
                     </td>
@@ -530,42 +520,43 @@ export default function LeadStorePage() {
                       )}
                     </td>
 
-                    {/* Store Stage Badge */}
+                    {/* Hunter */}
                     <td className="py-4 px-4 align-middle">
-                      {lead.stage === 'audit' || lead.stage === 'pending_approval' ? (
-                        <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-950 border border-amber-500/60 text-amber-300 animate-pulse">
-                          🔍 Under Audit
+                      <div className="flex items-center space-x-2">
+                        <div className="w-6 h-6 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-[10px] text-cyan-400">
+                          {hunter?.full_name?.charAt(0) || 'H'}
+                        </div>
+                        <span className="font-semibold text-slate-300">
+                          {hunter?.full_name || 'Hunter'}
                         </span>
-                      ) : (
-                        <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-950 border border-blue-500/60 text-blue-300">
-                          📥 Raw Stored
-                        </span>
-                      )}
+                      </div>
                     </td>
 
-                    {/* Actions: Send to Audit or Pass Audit */}
+                    {/* Assign Auditor Actions */}
                     <td className="py-4 px-5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end space-x-2">
-                        {lead.stage === 'lead_added' ? (
-                          <button
-                            type="button"
-                            onClick={() => sendToAudit(lead.id)}
-                            className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-bold text-xs flex items-center space-x-1 transition-all active:scale-95"
-                            title="Assign this lead for quality audit"
+                        
+                        {/* Member Select Dropdown to assign for audit */}
+                        <div className="relative">
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleSingleAssignAuditor(lead.id, e.target.value);
+                                e.target.value = '';
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/60 hover:border-amber-400 text-xs font-bold text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer transition-all shadow-md shadow-amber-950/30"
+                            title="অডিট করার জন্য মেম্বার সিলেক্ট করুন"
                           >
-                            <span>🔍 Send to Audit</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => passAudit(lead.id)}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 flex items-center space-x-1 transition-all active:scale-95"
-                            title="Audit Complete: Move to Audited Leads for Team Leader assignment"
-                          >
-                            <Check className="w-3.5 h-3.5 stroke-[3]" />
-                            <span>Audit Complete</span>
-                          </button>
-                        )}
+                            <option value="" disabled>👤 অডিটর নির্ধারণ করুন...</option>
+                            {teamMembers.map(m => (
+                              <option key={m.id} value={m.id}>
+                                {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
 
                         {/* Clock button for timeline */}
                         <button

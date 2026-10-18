@@ -14,7 +14,8 @@ import {
   DailyTaskStatus,
   DailyTaskPriority,
   DailyTaskCategory,
-  DailyTaskAssigneeStatus
+  DailyTaskAssigneeStatus,
+  OutreachChannel
 } from '@/types/crm';
 import { INITIAL_TEAM_MEMBERS, INITIAL_LEADS, INITIAL_ACTIVITIES, INITIAL_MISTAKES, INITIAL_DAILY_TASKS } from '@/lib/mock-data';
 import { normalizePhone } from '@/lib/phone-utils';
@@ -58,11 +59,14 @@ interface AppContextType {
   
   // Approval Gate & Trusted Hunter
   approveLead: (leadId: string) => { success: boolean; message: string };
-  passAudit: (leadId: string) => { success: boolean; message: string };
-  sendToAudit: (leadId: string) => { success: boolean; message: string };
-  bulkSendToAudit: (leadIds: string[]) => { success: boolean; count: number };
+  passAudit: (leadId: string, notes?: string) => { success: boolean; message: string };
+  sendToAudit: (leadId: string, auditorId?: string) => { success: boolean; message: string };
+  assignAuditor: (leadId: string, auditorId: string) => { success: boolean; message: string };
+  bulkSendToAudit: (leadIds: string[], auditorId?: string) => { success: boolean; count: number };
+  bulkAssignAuditor: (leadIds: string[], auditorId: string) => { success: boolean; count: number };
   bulkPassAudit: (leadIds: string[]) => { success: boolean; count: number };
-  bulkAssignLead: (leadIds: string[], assigneeId: string) => { success: boolean; count: number };
+  assignLead: (leadId: string, assigneeId: string, channel?: OutreachChannel) => { success: boolean; message: string };
+  bulkAssignLead: (leadIds: string[], assigneeId: string, channel?: OutreachChannel) => { success: boolean; count: number };
   rejectLead: (leadId: string, reason: string) => { success: boolean; message: string };
   toggleDeputy: (memberId: string) => void;
   
@@ -71,7 +75,6 @@ interface AppContextType {
   
   // Cadence & Mistake Guard
   advanceCadence: (leadId: string, currentReaction?: ClientReaction, note?: string) => { success: boolean; error?: string };
-  assignLead: (leadId: string, assigneeId: string) => { success: boolean; message: string };
   updateClientReaction: (leadId: string, reaction: ClientReaction) => void;
   markAsDnc: (leadId: string, reason: string) => void;
   
@@ -183,12 +186,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Hydrate leads with full hunter and assignee objects
+  // Hydrate leads with full hunter, assignee and auditor objects
   const hydratedLeads = useMemo(() => {
     return leads.map(l => ({
       ...l,
       hunter: teamMembers.find(m => m.id === l.original_hunter_id),
-      assignee: teamMembers.find(m => m.id === l.current_assignee_id)
+      assignee: teamMembers.find(m => m.id === l.current_assignee_id),
+      auditor: teamMembers.find(m => m.id === (l.auditor_id || (l.stage === 'audit' ? l.current_assignee_id : undefined)))
     }));
   }, [leads, teamMembers]);
 
@@ -445,28 +449,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 
 
-  // Send lead to Audit Stage
-  const sendToAudit = useCallback((leadId: string) => {
+  // Send lead to Audit Stage (Team Leader assigns a member to audit)
+  const sendToAudit = useCallback((leadId: string, auditorId?: string) => {
     const lead = hydratedLeads.find(l => l.id === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
+    const auditor = auditorId ? teamMembers.find(m => m.id === auditorId) : null;
+
     updateLead(leadId, {
-      stage: 'audit'
+      stage: 'audit',
+      auditor_id: auditorId,
+      current_assignee_id: auditorId
     });
 
     addActivityNote(
       leadId,
-      `🔍 Sent to Audit Stage by ${currentUser.full_name}. Awaiting quality verification.`,
-      [],
-      'status_change'
+      auditor 
+        ? `🔍 অডিটের জন্য এসাইন করা হয়েছে: ${auditor.full_name}-কে অডিটর হিসেবে নির্ধারণ করেছেন ${currentUser.full_name}। লিডটি Audited Lead সেকশনে রয়েছে।`
+        : `🔍 Sent to Audit Stage by ${currentUser.full_name}. Awaiting quality verification.`,
+      auditor ? [auditor.id] : [],
+      'audit_assigned'
     );
 
     soundEngine.playSuccessChime();
-    return { success: true, message: 'Lead moved to Audit Stage.' };
-  }, [hydratedLeads, currentUser, updateLead, addActivityNote]);
+    return { 
+      success: true, 
+      message: auditor 
+        ? `লিডটি সফলভাবে ${auditor.full_name}-কে অডিটের জন্য এসাইন করা হয়েছে এবং Audited Lead সেকশনে পাঠানো হয়েছে।`
+        : 'Lead moved to Audit Stage.' 
+    };
+  }, [hydratedLeads, teamMembers, currentUser, updateLead, addActivityNote]);
+
+  const assignAuditor = useCallback((leadId: string, auditorId: string) => {
+    return sendToAudit(leadId, auditorId);
+  }, [sendToAudit]);
 
   // Quality Audit Pass (moves to 'audited', ready for TL assignment)
-  const passAudit = useCallback((leadId: string) => {
+  const passAudit = useCallback((leadId: string, notes?: string) => {
     const lead = hydratedLeads.find(l => l.id === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
@@ -487,16 +506,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     updateLead(leadId, {
       stage: 'audited',
-      approved_at: new Date().toISOString(),
-      approved_by: currentUser.id,
+      audited_at: new Date().toISOString(),
+      audited_by: currentUser.id,
+      audit_notes: notes || lead.audit_notes,
+      current_assignee_id: undefined, // Cleared and ready for Team Leader to assign to Sales Member!
       rejection_reason: undefined
     });
 
     addActivityNote(
       leadId,
-      `✅ Quality Audit Passed by ${currentUser.full_name}. Moved to Audited Leads (Ready for Team Leader assignment).`,
+      `✅ Quality Audit Passed by ${currentUser.full_name}.${notes ? ` অডিট নোট: ${notes}` : ''} লিডটি এখন অডিটেড এবং টিম লিডার কর্তৃক সেলস মেম্বারকে ইমেইল/মেসেজের জন্য এসাইন করার জন্য প্রস্তুত।`,
       [lead.original_hunter_id],
-      'approval'
+      'audit_completed'
     );
 
     soundEngine.playSuccessChime();
@@ -508,24 +529,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [passAudit]);
 
   // Bulk Send Leads to Audit
-  const bulkSendToAudit = useCallback((leadIds: string[]) => {
+  const bulkSendToAudit = useCallback((leadIds: string[], auditorId?: string) => {
     if (!leadIds.length) return { success: false, count: 0 };
+    const auditor = auditorId ? teamMembers.find(m => m.id === auditorId) : null;
+
     setLeads(prev => prev.map(l => {
       if (leadIds.includes(l.id)) {
         return {
           ...l,
           stage: 'audit',
+          auditor_id: auditorId || l.auditor_id,
+          current_assignee_id: auditorId || l.current_assignee_id,
           updated_at: new Date().toISOString()
         };
       }
       return l;
     }));
+
     leadIds.forEach(id => {
-      addActivityNote(id, `🔍 Bulk sent to Audit by ${currentUser.full_name}.`, [], 'status_change');
+      addActivityNote(
+        id, 
+        auditor 
+          ? `🔍 বাল্ক অডিট এসাইনমেন্ট: ${auditor.full_name} কে অডিট করার দায়িত্ব দিয়েছেন ${currentUser.full_name}।`
+          : `🔍 Bulk sent to Audit by ${currentUser.full_name}.`, 
+        auditor ? [auditor.id] : [], 
+        'audit_assigned'
+      );
     });
+
     soundEngine.playSuccessChime();
     return { success: true, count: leadIds.length };
-  }, [currentUser, addActivityNote]);
+  }, [teamMembers, currentUser, addActivityNote]);
+
+  const bulkAssignAuditor = useCallback((leadIds: string[], auditorId: string) => {
+    return bulkSendToAudit(leadIds, auditorId);
+  }, [bulkSendToAudit]);
 
   // Bulk Pass Audit (Moves to 'audited', ready for TL assignment)
   const bulkPassAudit = useCallback((leadIds: string[]) => {
@@ -535,8 +573,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return {
           ...l,
           stage: 'audited',
-          approved_at: new Date().toISOString(),
-          approved_by: currentUser.id,
+          audited_at: new Date().toISOString(),
+          audited_by: currentUser.id,
+          current_assignee_id: undefined,
           rejection_reason: undefined,
           updated_at: new Date().toISOString()
         };
@@ -544,14 +583,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return l;
     }));
     leadIds.forEach(id => {
-      addActivityNote(id, `✅ Quality Audit Passed in bulk by ${currentUser.full_name}. Moved to Audited Leads.`, [], 'approval');
+      addActivityNote(id, `✅ Quality Audit Passed in bulk by ${currentUser.full_name}. Moved to Audited Leads.`, [], 'audit_completed');
     });
     soundEngine.playSuccessChime();
     return { success: true, count: leadIds.length };
   }, [currentUser, addActivityNote]);
 
-  // Bulk Assign Audited Leads to a Sales Member
-  const bulkAssignLead = useCallback((leadIds: string[], assigneeId: string) => {
+  // Bulk Assign Audited Leads to a Sales Member (Supports Channel!)
+  const bulkAssignLead = useCallback((leadIds: string[], assigneeId: string, channel?: OutreachChannel) => {
     if (!leadIds.length) return { success: false, count: 0 };
     const assignee = teamMembers.find(m => m.id === assigneeId);
     if (!assignee) return { success: false, count: 0 };
@@ -561,6 +600,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return {
           ...l,
           current_assignee_id: assigneeId,
+          channel: channel || l.channel || 'whatsapp',
           stage: 'contacted',
           cadence_step: l.cadence_step ?? 0,
           updated_at: new Date().toISOString()
@@ -574,7 +614,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         id, 
         `🎯 Bulk assigned to ${assignee.full_name} (${assignee.role}) by ${currentUser.full_name}. Lead is live in their Today's Work dashboard.`, 
         [assignee.id], 
-        'status_change'
+        'sales_assigned'
       );
     });
 
@@ -756,29 +796,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [hydratedLeads, currentUser, updateLead, addActivityNote]);
 
-  // Assign Audited Lead to a Team Member (Leader / Deputy)
-  const assignLead = useCallback((leadId: string, assigneeId: string) => {
+  // Assign Audited Lead to a Sales Member for WhatsApp/Email Outreach (Leader / Deputy)
+  const assignLead = useCallback((leadId: string, assigneeId: string, channel?: OutreachChannel) => {
     const lead = hydratedLeads.find(l => l.id === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
     const assignee = teamMembers.find(m => m.id === assigneeId);
     if (!assignee) return { success: false, message: 'Assignee not found.' };
 
+    const targetChannel = channel || lead.channel || 'whatsapp';
+
     updateLead(leadId, {
       current_assignee_id: assigneeId,
+      channel: targetChannel,
       stage: 'contacted',
       cadence_step: lead.cadence_step ?? 0,
     });
 
     addActivityNote(
       leadId,
-      `🎯 Assigned to ${assignee.full_name} (${assignee.role}) by ${currentUser.full_name}. Lead is now live in their Today's Work queue.`,
+      `🎯 Assigned to ${assignee.full_name} (${assignee.role}) for ${targetChannel.toUpperCase()} outreach by ${currentUser.full_name}. Lead is now live in their Today's Work queue.`,
       [assignee.id],
-      'status_change'
+      'sales_assigned'
     );
 
     soundEngine.playSuccessChime();
-    return { success: true, message: `Lead successfully assigned to ${assignee.full_name}.` };
+    return { success: true, message: `Lead successfully assigned to ${assignee.full_name} for ${targetChannel.toUpperCase()} outreach.` };
   }, [hydratedLeads, teamMembers, currentUser, updateLead, addActivityNote]);
 
   // Update Client Reaction
@@ -1202,7 +1245,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     approveLead,
     passAudit,
     sendToAudit,
+    assignAuditor,
     bulkSendToAudit,
+    bulkAssignAuditor,
     bulkPassAudit,
     bulkAssignLead,
     rejectLead,
