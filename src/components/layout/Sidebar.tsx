@@ -22,7 +22,8 @@ import {
   Crown,
   Lock,
   Download,
-  X
+  X,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -56,7 +57,8 @@ export function Sidebar({
     dailyTasks,
     setIsLoginModalOpen,
     inspectMember,
-    exitInspection
+    exitInspection,
+    logout
   } = useApp();
 
   const isLeader = currentUser.role === 'team_leader' || !!leaderSession;
@@ -483,17 +485,31 @@ export function Sidebar({
           </button>
         )}
 
-        {/* Login / Switch Account Button */}
-        <button
-          onClick={() => {
-            setIsLoginModalOpen(true);
-            onMobileClose?.();
-          }}
-          className="w-full py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white font-bold text-[10px] flex items-center justify-center space-x-1.5 transition-colors"
-        >
-          <KeyRound className="w-3 h-3 text-cyan-400" />
-          <span>আইডি ও পাসওয়ার্ড দিয়ে লগইন</span>
-        </button>
+        {/* Login / Switch Account & Sign Out Buttons */}
+        <div className="grid grid-cols-2 gap-1.5 pt-1">
+          <button
+            onClick={() => {
+              setIsLoginModalOpen(true);
+              onMobileClose?.();
+            }}
+            className="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white font-bold text-[10px] flex items-center justify-center space-x-1 transition-colors"
+            title="অন্য অ্যাকাউন্টে স্যুইচ করুন"
+          >
+            <KeyRound className="w-3 h-3 text-cyan-400" />
+            <span>লগইন</span>
+          </button>
+          <button
+            onClick={() => {
+              logout();
+              onMobileClose?.();
+            }}
+            className="py-1.5 px-2 rounded-lg bg-rose-950/40 hover:bg-rose-950/80 border border-rose-900/50 hover:border-rose-600 text-rose-300 hover:text-rose-100 font-bold text-[10px] flex items-center justify-center space-x-1 transition-colors"
+            title="সিআরএম থেকে লগআউট করুন"
+          >
+            <LogOut className="w-3 h-3" />
+            <span>লগআউট</span>
+          </button>
+        </div>
       </div>
 
     </aside>

@@ -19,9 +19,13 @@ import { CloudSyncModal } from '@/components/sync/CloudSyncModal';
 
 import { LeaderInspectionBanner } from '@/components/layout/LeaderInspectionBanner';
 import { LoginModal } from '@/components/auth/LoginModal';
+import { AuthGateScreen } from '@/components/auth/AuthGateScreen';
+import { ShieldCheck } from 'lucide-react';
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const { 
+    isAuthenticated,
+    isAuthLoaded,
     isNichesModalOpen, 
     setIsNichesModalOpen,
     isCreateModalOpen,
@@ -36,6 +40,26 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
+
+  // Initial loading state while reading session from localStorage
+  if (!isAuthLoaded) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-emerald-500 flex items-center justify-center shadow-xl shadow-cyan-500/20 animate-pulse">
+          <ShieldCheck className="w-6 h-6 text-slate-950 stroke-[2.5]" />
+        </div>
+        <div className="space-y-1 text-center">
+          <p className="text-xs text-white font-bold tracking-widest uppercase">Master Ads Injection</p>
+          <p className="text-[11px] text-slate-400 font-mono">ভেরিফাই করা হচ্ছে...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mandatory Authentication Gate: Block entire CRM if not logged in!
+  if (!isAuthenticated) {
+    return <AuthGateScreen />;
+  }
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-slate-950">
