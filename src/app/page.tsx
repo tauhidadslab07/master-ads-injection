@@ -34,6 +34,7 @@ import {
 import { TeamPerformanceModal } from '@/components/analytics/TeamPerformanceModal';
 import { MemberDailyTasksWidget } from '@/components/tasks/MemberDailyTasksWidget';
 import { DailyCallbackAlertBanner } from '@/components/leads/DailyCallbackAlertBanner';
+import { MemberPersonalWorkspace } from '@/components/dashboard/MemberPersonalWorkspace';
 
 export default function HomePage() {
   const { 
@@ -53,6 +54,7 @@ export default function HomePage() {
     retroactiveDuplicates 
   } = useApp();
 
+  const [homeViewTab, setHomeViewTab] = useState<'my_focus' | 'all_pipeline'>('my_focus');
   const [activeNiche, setActiveNiche] = useState(selectedNiche || 'all');
   const [activeQueueTab, setActiveQueueTab] = useState<'all_due' | 'initial' | 'fu1' | 'fu2' | 'fu3' | 'fu4' | 'fu5' | 'callbacks' | 'all_done'>('all_due');
   const [activePriority, setActivePriority] = useState('all');
@@ -175,11 +177,50 @@ export default function HomePage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       
-      {/* 0. TEAM LEADER ASSIGNED DAILY TASKS WIDGET */}
-      <MemberDailyTasksWidget />
+      {/* HOME VIEW SWITCHER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/90 p-2.5 rounded-3xl border border-slate-800 shadow-xl">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setHomeViewTab('my_focus')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black flex items-center space-x-2 transition-all active:scale-95 ${
+              homeViewTab === 'my_focus'
+                ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>🎯 দৈনিক অ্যাকশন ও ফোকাস কিউ (Today&apos;s Focus Workspace)</span>
+          </button>
 
-      {/* 0.5 TODAY'S SCHEDULED CALLBACK DIGEST & MORNING ALERT */}
-      <DailyCallbackAlertBanner />
+          <button
+            type="button"
+            onClick={() => setHomeViewTab('all_pipeline')}
+            className={`px-4 py-2.5 rounded-2xl text-xs font-black flex items-center space-x-2 transition-all active:scale-95 ${
+              homeViewTab === 'all_pipeline'
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/20'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>🌐 সকল পাইপলাইন ও ক্যাডেন্স ভিউ (All Pipeline Overview)</span>
+          </button>
+        </div>
+
+        <div className="text-xs text-slate-400 font-medium px-3 hidden lg:block">
+          {homeViewTab === 'my_focus' ? '✨ ব্যক্তিগত অ্যাকশন তালিকা ও টার্গেট' : '📊 এজেন্সি-ওয়াইড ক্যাডেন্স পাইপলাইন'}
+        </div>
+      </div>
+
+      {homeViewTab === 'my_focus' ? (
+        <MemberPersonalWorkspace />
+      ) : (
+        <>
+          {/* 0. TEAM LEADER ASSIGNED DAILY TASKS WIDGET */}
+          <MemberDailyTasksWidget />
+
+          {/* 0.5 TODAY'S SCHEDULED CALLBACK DIGEST & MORNING ALERT */}
+          <DailyCallbackAlertBanner />
 
       {/* 1. DAILY OUTREACH VELOCITY CARD (Exact Nexus style) */}
       <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
@@ -820,6 +861,8 @@ export default function HomePage() {
         )}
 
       </div>
+        </>
+      )}
 
       {/* Team Performance & Daily Accountability Modal */}
       <TeamPerformanceModal 

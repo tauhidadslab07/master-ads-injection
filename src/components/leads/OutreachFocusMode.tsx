@@ -34,6 +34,7 @@ export function OutreachFocusMode() {
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [cadenceError, setCadenceError] = useState<string | null>(null);
+  const [focusAssigneeScope, setFocusAssigneeScope] = useState<'my' | 'all'>('my');
 
   // Filter leads eligible for outreach (approved or contacted, not DNC, not closed)
   const outreachLeads = useMemo(() => {
@@ -42,9 +43,14 @@ export function OutreachFocusMode() {
       if (l.stage === 'closed_won' || l.stage === 'closed_lost' || l.stage === 'archived') return false;
       if (channelFilter === 'whatsapp' && l.channel !== 'whatsapp') return false;
       if (channelFilter === 'email' && l.channel !== 'email') return false;
+
+      if (focusAssigneeScope === 'my') {
+        const userHasLeads = leads.some(lead => lead.current_assignee_id === currentUser.id);
+        if (userHasLeads && l.current_assignee_id !== currentUser.id) return false;
+      }
       return true;
     });
-  }, [leads, channelFilter]);
+  }, [leads, channelFilter, focusAssigneeScope, currentUser.id]);
 
   // Reset index if out of bounds
   useEffect(() => {
@@ -260,18 +266,24 @@ export function OutreachFocusMode() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {(['unseen', 'seen', 'replied', 'interested', 'not_interested'] as ClientReaction[]).map((rx) => (
+                {[
+                  { key: 'replied', label: '💬 Replied' },
+                  { key: 'seen', label: '👀 Seen' },
+                  { key: 'interested', label: '🔥 Interested' },
+                  { key: 'not_interested', label: '📞 No Answer' },
+                  { key: 'unseen', label: '⏳ Unseen' },
+                ].map((item) => (
                   <button
-                    key={rx}
+                    key={item.key}
                     type="button"
-                    onClick={() => updateClientReaction(currentLead.id, rx)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all ${
-                      currentLead.last_client_reaction === rx
-                        ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
-                        : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                    onClick={() => updateClientReaction(currentLead.id, item.key as ClientReaction)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                      currentLead.last_client_reaction === item.key
+                        ? 'bg-emerald-500 text-slate-950 font-black shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400'
+                        : 'bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
                     }`}
                   >
-                    {rx}
+                    {item.label}
                   </button>
                 ))}
               </div>

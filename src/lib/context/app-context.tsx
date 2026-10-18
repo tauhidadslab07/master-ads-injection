@@ -70,8 +70,11 @@ interface AppContextType {
   rejectLead: (leadId: string, reason: string) => { success: boolean; message: string };
   toggleDeputy: (memberId: string) => void;
   
-  // Emergency Leave / Offboarding
+  // Emergency Leave / Offboarding & Planned Availability
   triggerEmergencyLeave: (memberId: string) => Promise<{ success: boolean; reassignedCount: number }>;
+  updateMemberLeaveSchedule: (memberId: string, startDate?: string, endDate?: string, onLeave?: boolean) => void;
+  submitBatchToLeader: (note?: string) => { success: boolean; message: string };
+  resubmitRejectedLead: (leadId: string, updatedData?: Partial<Lead>) => { success: boolean; message: string };
   
   // Cadence & Mistake Guard
   advanceCadence: (leadId: string, currentReaction?: ClientReaction, note?: string) => { success: boolean; error?: string };
@@ -720,6 +723,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true, reassignedCount: count };
   }, [teamMembers, addActivityNote]);
 
+  // Update member planned leave schedule
+  const updateMemberLeaveSchedule = useCallback((memberId: string, startDate?: string, endDate?: string, onLeave?: boolean) => {
+    setTeamMembers(prev => prev.map(m => {
+      if (m.id === memberId) {
+        return {
+          ...m,
+          leave_start_date: startDate !== undefined ? startDate : m.leave_start_date,
+          leave_end_date: endDate !== undefined ? endDate : m.leave_end_date,
+          on_leave: onLeave !== undefined ? onLeave : m.on_leave
+        };
+      }
+      return m;
+    }));
+    soundEngine.playSuccessChime();
+  }, []);
+
+  // Submit batch to leader
+  const submitBatchToLeader = useCallback((note?: string) => {
+    const leader = teamMembers.find(m => m.role === 'team_leader') || teamMembers[0];
+    const content = `🚀 [Batch Submission] ${currentUser.full_name} has completed their daily target batch and submitted it for leader review.${note ? ` Note: "${note}"` : ''}`;
+    
+    // Add activity note with mention of leader
+    const newAct: LeadActivity = {
+      id: `act-${Date.now()}`,
+      lead_id: 'general',
+      author_id: currentUser.id,
+      activity_type: 'status_change',
+      content,
+      mentions: [leader.id],
+      created_at: new Date().toISOString()
+    };
+    setActivities(prev => [newAct, ...prev]);
+    soundEngine.playSuccessChime();
+    return { success: true, message: `ব্যাচ সফলভাবে টিম লিডার ${leader.full_name}-এর কাছে সাবমিট করা হয়েছে!` };
+  }, [currentUser, teamMembers]);
+
+  // Resubmit rejected lead after hunter revision
+  const resubmitRejectedLead = useCallback((leadId: string, updatedData?: Partial<Lead>) => {
+    const lead = hydratedLeads.find(l => l.id === leadId);
+    if (!lead) return { success: false, message: 'Lead not found.' };
+
+    updateLead(leadId, {
+      ...updatedData,
+      stage: 'lead_added',
+      rejection_reason: undefined,
+      updated_at: new Date().toISOString()
+    });
+
+    addActivityNote(
+      leadId,
+      `🔄 [Lead Revised & Resubmitted] ${currentUser.full_name} has revised contact information and resubmitted lead for audit review.`,
+      [],
+      'status_change'
+    );
+
+    soundEngine.playSuccessChime();
+    return { success: true, message: 'লিডটি সফলভাবে সংশোধন করে পুনরায় অডিটে পাঠানো হয়েছে!' };
+  }, [hydratedLeads, updateLead, addActivityNote, currentUser]);
+
   // Cadence Step Advancement with Mistake Guard Hard-Lock
   const advanceCadence = useCallback((leadId: string, explicitReaction?: ClientReaction, note?: string) => {
     const lead = hydratedLeads.find(l => l.id === leadId);
@@ -1253,6 +1315,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     rejectLead,
     toggleDeputy,
     triggerEmergencyLeave,
+    updateMemberLeaveSchedule,
+    submitBatchToLeader,
+    resubmitRejectedLead,
     advanceCadence,
     assignLead,
     updateClientReaction,

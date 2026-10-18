@@ -42,6 +42,10 @@ export interface TeamMember {
   is_deputy: boolean;
   is_active: boolean;
   on_leave: boolean;
+  leave_start_date?: string;
+  leave_end_date?: string;
+  points?: number;
+  rank?: number;
   consecutive_approvals: number;
   is_trusted_hunter: boolean;
   avatar_url?: string;
