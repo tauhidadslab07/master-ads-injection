@@ -9,9 +9,14 @@ import {
   DuplicateCheckResult, 
   DuplicateMatch,
   ClientReaction,
-  LeadStage
+  LeadStage,
+  DailyTask,
+  DailyTaskStatus,
+  DailyTaskPriority,
+  DailyTaskCategory,
+  DailyTaskAssigneeStatus
 } from '@/types/crm';
-import { INITIAL_TEAM_MEMBERS, INITIAL_LEADS, INITIAL_ACTIVITIES, INITIAL_MISTAKES } from '@/lib/mock-data';
+import { INITIAL_TEAM_MEMBERS, INITIAL_LEADS, INITIAL_ACTIVITIES, INITIAL_MISTAKES, INITIAL_DAILY_TASKS } from '@/lib/mock-data';
 import { normalizePhone } from '@/lib/phone-utils';
 import { soundEngine } from '@/lib/audio-chime';
 import { createClient } from '@/lib/supabase/client';
@@ -100,6 +105,12 @@ interface AppContextType {
   exitInspection: () => void;
   logout: () => void;
   loginWithCredentials: (username: string, password: string) => { success: boolean; error?: string };
+
+  // Team Leader Daily Tasks & Multi-Member Dispatch
+  dailyTasks: DailyTask[];
+  createDailyTask: (taskData: Omit<DailyTask, 'id' | 'created_at' | 'assignee_statuses'>) => { success: boolean; task?: DailyTask; error?: string };
+  updateDailyTaskStatus: (taskId: string, memberId: string, status: DailyTaskStatus, note?: string, progressCount?: number) => { success: boolean };
+  deleteDailyTask: (taskId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -109,6 +120,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
   const [activities, setActivities] = useState<LeadActivity[]>(INITIAL_ACTIVITIES);
   const [mistakes, setMistakes] = useState<MemberActivityMistake[]>(INITIAL_MISTAKES);
+  const [dailyTasks, setDailyTasks] = useState<DailyTask[]>(INITIAL_DAILY_TASKS);
   
   // Current user and leader session (Tauhid by default)
   const [currentUser, setCurrentUser] = useState<TeamMember>(INITIAL_TEAM_MEMBERS[0]);
@@ -1074,6 +1086,57 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [teamMembers]);
 
+  // Create Daily Task (Supports assigning multiple members!)
+  const createDailyTask = useCallback((taskData: Omit<DailyTask, 'id' | 'created_at' | 'assignee_statuses'>) => {
+    const initialAssigneeStatuses: Record<string, DailyTaskAssigneeStatus> = {};
+    taskData.assigned_member_ids.forEach(mId => {
+      initialAssigneeStatuses[mId] = {
+        member_id: mId,
+        status: 'pending'
+      };
+    });
+
+    const newTask: DailyTask = {
+      ...taskData,
+      id: `task-${Date.now()}`,
+      assignee_statuses: initialAssigneeStatuses,
+      created_at: new Date().toISOString()
+    };
+
+    setDailyTasks(prev => [newTask, ...prev]);
+    soundEngine.playSuccessChime();
+    return { success: true, task: newTask };
+  }, []);
+
+  // Update a specific member's status for a daily task
+  const updateDailyTaskStatus = useCallback((taskId: string, memberId: string, status: DailyTaskStatus, note?: string, progressCount?: number) => {
+    setDailyTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      const currentAssigneeStatus = t.assignee_statuses[memberId] || { member_id: memberId, status: 'pending' };
+      return {
+        ...t,
+        assignee_statuses: {
+          ...t.assignee_statuses,
+          [memberId]: {
+            ...currentAssigneeStatus,
+            status,
+            completion_note: note !== undefined ? note : currentAssigneeStatus.completion_note,
+            progress_count: progressCount !== undefined ? progressCount : currentAssigneeStatus.progress_count,
+            completed_at: status === 'completed' ? new Date().toISOString() : currentAssigneeStatus.completed_at
+          }
+        }
+      };
+    }));
+    soundEngine.playSuccessChime();
+    return { success: true };
+  }, []);
+
+  // Delete a daily task
+  const deleteDailyTask = useCallback((taskId: string) => {
+    setDailyTasks(prev => prev.filter(t => t.id !== taskId));
+    soundEngine.playSuccessChime();
+  }, []);
+
   const value: AppContextType = {
     leads: hydratedLeads,
     teamMembers,
@@ -1082,6 +1145,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isLoginModalOpen,
     activities,
     mistakes,
+    dailyTasks,
     selectedLead,
     isLeadDrawerOpen,
     channelFilter,
@@ -1134,7 +1198,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     setScheduledCallback,
     clearScheduledCallback,
-    loginWithCredentials
+    loginWithCredentials,
+
+    createDailyTask,
+    updateDailyTaskStatus,
+    deleteDailyTask
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

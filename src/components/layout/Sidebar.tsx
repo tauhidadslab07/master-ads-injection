@@ -39,6 +39,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
     setIsNichesModalOpen, 
     teamMembers,
     leaderSession,
+    dailyTasks,
     setIsLoginModalOpen,
     inspectMember,
     exitInspection
@@ -292,6 +293,32 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
               </Link>
             </div>
           </div>
+
+          {/* TEAM LEADER EXCLUSIVE: Daily Task Dispatcher */}
+          {isLeader && (
+            <div className="pt-2">
+              <p className="px-3 text-[10px] uppercase font-black tracking-wider text-amber-400 mb-1 flex items-center justify-between">
+                <span>👑 Leader Zone</span>
+                <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-black border border-amber-500/40">Exclusive</span>
+              </p>
+              <Link
+                href="/leader-tasks"
+                className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all ${
+                  pathname === '/leader-tasks'
+                    ? 'bg-amber-950/90 text-amber-300 border border-amber-500/70 shadow-lg shadow-amber-950/60 font-black'
+                    : 'text-amber-200/90 bg-amber-950/20 border border-amber-500/20 hover:bg-amber-950/50 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  <span>Leader Task Board</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950">
+                  {dailyTasks.length}
+                </span>
+              </Link>
+            </div>
+          )}
 
         </div>
 

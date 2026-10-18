@@ -159,3 +159,30 @@ export const CADENCE_STEPS: CadenceDefinition[] = [
   { step: 5, dayLabel: '5th Follow-up', daysAfterStart: 14, channel: 'whatsapp', description: '5th Follow-up (Final Breakup Offer)' },
   { step: 6, dayLabel: 'All Done', daysAfterStart: 18, channel: 'whatsapp', description: 'All 5 Follow-ups Completed' },
 ];
+
+export type DailyTaskStatus = 'pending' | 'in_progress' | 'completed' | 'missed';
+export type DailyTaskPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type DailyTaskCategory = 'lead_hunting' | 'cadence_followup' | 'quality_audit' | 'closing_call' | 'custom_goal';
+
+export interface DailyTaskAssigneeStatus {
+  member_id: string;
+  status: DailyTaskStatus;
+  completed_at?: string;
+  completion_note?: string;
+  progress_count?: number;
+}
+
+export interface DailyTask {
+  id: string;
+  title: string;
+  description?: string;
+  category: DailyTaskCategory;
+  priority: DailyTaskPriority;
+  assigned_by_id: string;
+  assigned_member_ids: string[];
+  assignee_statuses: Record<string, DailyTaskAssigneeStatus>;
+  target_date: string; // YYYY-MM-DD
+  target_count?: number;
+  created_at: string;
+}
+

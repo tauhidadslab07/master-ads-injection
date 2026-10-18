@@ -1,4 +1,4 @@
-import { Lead, TeamMember, LeadActivity, MemberActivityMistake } from '@/types/crm';
+import { Lead, TeamMember, LeadActivity, MemberActivityMistake, DailyTask } from '@/types/crm';
 
 export const INITIAL_TEAM_MEMBERS: TeamMember[] = [
   {
@@ -576,5 +576,109 @@ export const INITIAL_MISTAKES: MemberActivityMistake[] = [
     description: 'Blocked: Cadence advance prevented because client response state was left blank.',
     attempted_action: 'Advance Cadence (Step 3 -> Step 4)',
     created_at: '2026-10-16T16:10:00Z'
+  }
+];
+
+export const INITIAL_DAILY_TASKS: DailyTask[] = [
+  {
+    id: 'task-101',
+    title: '🔥 ২০টি হাই-টিকিট ই-কমার্স ও ডিটিসি ব্র্যান্ড হান্ট করো এবং লিড স্টোরে আপলোড করো',
+    description: 'ইউএস ও ইউকে মার্কেটের ডাইরেক্ট-টু-কনজিউমার ফ্যাশন, বিউটি ও ফিটনেস ব্র্যান্ডগুলোর ভেরিফায়েড হোয়াটসঅ্যাপ ও ফোন নম্বর সহ স্টোরে আপলোড করতে হবে।',
+    category: 'lead_hunting',
+    priority: 'urgent',
+    assigned_by_id: 'usr-tauhid',
+    assigned_member_ids: ['usr-mustafizur', 'usr-tahmeed', 'usr-sakib'],
+    assignee_statuses: {
+      'usr-mustafizur': {
+        member_id: 'usr-mustafizur',
+        status: 'completed',
+        completed_at: '2026-10-18T14:30:00Z',
+        completion_note: '২২টি ভেরিফায়েড ডিটিসি লিড স্টোরে জমা দিয়েছি।',
+        progress_count: 22
+      },
+      'usr-tahmeed': {
+        member_id: 'usr-tahmeed',
+        status: 'in_progress',
+        completion_note: '১২টি লিড পেয়েছি, বাকি ৮টি সংগ্রহ চলছে।',
+        progress_count: 12
+      },
+      'usr-sakib': {
+        member_id: 'usr-sakib',
+        status: 'pending'
+      }
+    },
+    target_date: '2026-10-18',
+    target_count: 20,
+    created_at: '2026-10-18T09:00:00Z'
+  },
+  {
+    id: 'task-102',
+    title: '💬 Step 1 & Step 2 ফলো-আপ মেসেজ পাঠানো এবং ক্লায়েন্ট রিয়্যাকশন আপডেট',
+    description: 'আজকের টুডেস ওয়ার্ক তালিকায় থাকা ১ম ও ২য় ফলো-আপ ক্লায়েন্টদের কেস স্টাডি সহ মেসেজ পাঠাও। মেসেজ স্ট্যাটাস (Seen/Replied/Not Interested) অবশ্যই আপডেট করতে হবে।',
+    category: 'cadence_followup',
+    priority: 'high',
+    assigned_by_id: 'usr-tauhid',
+    assigned_member_ids: ['usr-mustafizur', 'usr-tahmeed', 'usr-sakib', 'usr-alauddin', 'usr-sunny', 'usr-imam', 'usr-jahid'],
+    assignee_statuses: {
+      'usr-mustafizur': {
+        member_id: 'usr-mustafizur',
+        status: 'completed',
+        completed_at: '2026-10-18T16:00:00Z',
+        completion_note: 'সকল নির্ধারিত লিডে মেসেজ ও স্ট্যাটাস আপডেট সম্পন্ন।'
+      },
+      'usr-tahmeed': {
+        member_id: 'usr-tahmeed',
+        status: 'completed',
+        completed_at: '2026-10-18T15:20:00Z',
+        completion_note: 'সব শেষ।'
+      },
+      'usr-sunny': {
+        member_id: 'usr-sunny',
+        status: 'in_progress',
+        completion_note: '১০টি পাঠানো হয়েছে, বাকিগুলো দেখছি।'
+      },
+      'usr-alauddin': {
+        member_id: 'usr-alauddin',
+        status: 'pending'
+      },
+      'usr-sakib': {
+        member_id: 'usr-sakib',
+        status: 'pending'
+      },
+      'usr-imam': {
+        member_id: 'usr-imam',
+        status: 'pending'
+      },
+      'usr-jahid': {
+        member_id: 'usr-jahid',
+        status: 'in_progress'
+      }
+    },
+    target_date: '2026-10-18',
+    target_count: 25,
+    created_at: '2026-10-18T09:15:00Z'
+  },
+  {
+    id: 'task-103',
+    title: '🔍 অডিট পেন্ডিং লিডগুলোর কোয়ালিটি রিভিউ ও লিডারের কাছে হস্তান্তর',
+    description: 'লিড স্টোরে নতুন আসা লিডগুলোর ওয়েবসাইট ও মেটা অ্যাড লাইব্রেরি অডিট করে দ্রুত অডিটেড স্টেজে পাঠাও।',
+    category: 'quality_audit',
+    priority: 'normal',
+    assigned_by_id: 'usr-tauhid',
+    assigned_member_ids: ['usr-alauddin', 'usr-sunny'],
+    assignee_statuses: {
+      'usr-alauddin': {
+        member_id: 'usr-alauddin',
+        status: 'in_progress',
+        completion_note: '৫টি অডিট করেছি।'
+      },
+      'usr-sunny': {
+        member_id: 'usr-sunny',
+        status: 'pending'
+      }
+    },
+    target_date: '2026-10-18',
+    target_count: 10,
+    created_at: '2026-10-18T10:00:00Z'
   }
 ];

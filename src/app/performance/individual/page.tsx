@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export default function IndividualPerformancePage() {
-  const { teamMembers, leads, activities, mistakes, currentUser, leaderSession } = useApp();
+  const { teamMembers, leads, activities, mistakes, currentUser, leaderSession, dailyTasks } = useApp();
 
   const isLeader = currentUser.role === 'team_leader' || !!leaderSession;
 
@@ -49,6 +49,15 @@ export default function IndividualPerformancePage() {
   const assignedLeads = useMemo(() => {
     return leads.filter(l => l.current_assignee_id === selectedMember.id && !l.is_dnc);
   }, [leads, selectedMember.id]);
+
+  // Daily Tasks assigned by Team Leader
+  const memberDailyTasks = useMemo(() => {
+    return dailyTasks.filter(t => t.assigned_member_ids.includes(selectedMember.id));
+  }, [dailyTasks, selectedMember.id]);
+
+  const memberDailyCompletedCount = useMemo(() => {
+    return memberDailyTasks.filter(t => t.assignee_statuses[selectedMember.id]?.status === 'completed').length;
+  }, [memberDailyTasks, selectedMember.id]);
 
   // 3. Member Activities & Stage Messaging
   const memberActivities = useMemo(() => {
@@ -438,6 +447,61 @@ export default function IndividualPerformancePage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+
+      {/* 5.5 Leader Assigned Daily Tasks Section */}
+      <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Target className="w-4 h-4 text-cyan-400" />
+            <h3 className="text-sm font-bold text-white">
+              টিম লিডার নির্ধারিত ডেইলি টাস্ক ({selectedMember.full_name})
+            </h3>
+          </div>
+          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800">
+            {memberDailyCompletedCount} / {memberDailyTasks.length} সম্পন্ন
+          </span>
+        </div>
+
+        {memberDailyTasks.length === 0 ? (
+          <p className="text-slate-500 text-[11px] italic">
+            এই মেম্বারের জন্য বর্তমানে কোনো বিশেষ ডেইলি টাস্ক নির্ধারিত নেই।
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {memberDailyTasks.map(t => {
+              const mySt = t.assignee_statuses[selectedMember.id] || { status: 'pending' };
+              return (
+                <div key={t.id} className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-white">{t.title}</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 uppercase font-bold">{t.priority}</span>
+                    </div>
+                    {mySt.completion_note && (
+                      <p className="text-[11px] text-slate-400 mt-0.5 italic">মেম্বারের নোট: &quot;{mySt.completion_note}&quot;</p>
+                    )}
+                  </div>
+                  <div>
+                    {mySt.status === 'completed' ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-950 text-emerald-300 border border-emerald-800">
+                        ✅ সম্পন্ন
+                      </span>
+                    ) : mySt.status === 'in_progress' ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
+                        🔄 চলছে
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-800">
+                        ⏳ অপেক্ষমান
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -32,6 +32,7 @@ import {
   Layers
 } from 'lucide-react';
 import { TeamPerformanceModal } from '@/components/analytics/TeamPerformanceModal';
+import { MemberDailyTasksWidget } from '@/components/tasks/MemberDailyTasksWidget';
 
 export default function HomePage() {
   const { 
@@ -173,6 +174,9 @@ export default function HomePage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       
+      {/* 0. TEAM LEADER ASSIGNED DAILY TASKS WIDGET */}
+      <MemberDailyTasksWidget />
+
       {/* 1. DAILY OUTREACH VELOCITY CARD (Exact Nexus style) */}
       <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
