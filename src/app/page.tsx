@@ -5,6 +5,7 @@ import { useApp } from '@/lib/context/app-context';
 import { Lead, CADENCE_STEPS, ClientReaction } from '@/types/crm';
 import { getWhatsAppUrl } from '@/lib/phone-utils';
 import { soundEngine } from '@/lib/audio-chime';
+import { LeadTableView } from '@/components/leads/LeadTableView';
 import { 
   Zap, 
   Flame, 
@@ -20,7 +21,9 @@ import {
   ExternalLink,
   Target,
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  List,
+  LayoutList
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -39,6 +42,7 @@ export default function HomePage() {
   const [activePriority, setActivePriority] = useState('all');
   const [selectedWhatsAppLine, setSelectedWhatsAppLine] = useState('primary');
   const [dailyGoal, setDailyGoal] = useState(20);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
   // Outreach Velocity metrics
   const completedTodayCount = leads.filter(l => l.stage === 'contacted' || l.stage === 'replied').length;
@@ -338,136 +342,180 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* Priority Sub-filter Pills */}
-        <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs select-none">
-          <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider shrink-0">
-            PRIORITY:
-          </span>
+        {/* Priority Sub-filter Pills & View Switcher */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs select-none">
+            <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider shrink-0">
+              PRIORITY:
+            </span>
 
-          <button
-            onClick={() => setActivePriority('all')}
-            className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
-              activePriority === 'all'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            All Leads
-          </button>
+            <button
+              onClick={() => setActivePriority('all')}
+              className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
+                activePriority === 'all'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              All Leads
+            </button>
 
-          <button
-            onClick={() => setActivePriority('hot')}
-            className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
-              activePriority === 'hot'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            🔥 Hot Priority
-          </button>
+            <button
+              onClick={() => setActivePriority('hot')}
+              className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
+                activePriority === 'hot'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              🔥 Hot Priority
+            </button>
 
-          <button
-            onClick={() => setActivePriority('warm')}
-            className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
-              activePriority === 'warm'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            ⚡ Warm Touchpoints
-          </button>
+            <button
+              onClick={() => setActivePriority('warm')}
+              className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
+                activePriority === 'warm'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              ⚡ Warm Touchpoints
+            </button>
 
-          <button
-            onClick={() => setActivePriority('cold')}
-            className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
-              activePriority === 'cold'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            ❄️ Cold Outreach
-          </button>
+            <button
+              onClick={() => setActivePriority('cold')}
+              className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
+                activePriority === 'cold'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              ❄️ Cold Outreach
+            </button>
+          </div>
+
+          {/* Table / Cards View Switcher */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-950 border border-slate-800 shrink-0">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                viewMode === 'table'
+                  ? 'bg-emerald-950 border border-emerald-500/60 text-emerald-300 shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Table View (Nexus Outreach Engine)"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold">Table View</span>
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                viewMode === 'cards'
+                  ? 'bg-slate-800 text-white shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Card Rows"
+            >
+              <LayoutList className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold">Card Rows</span>
+            </button>
+          </div>
         </div>
 
-        {/* Lead Queue Items List (High-density Agency Rows) */}
-        <div className="space-y-3 pt-2">
-          {queueLeads.map((lead) => {
-            const hunterWaUrl = lead.hunter?.phone ? getWhatsAppUrl(lead.hunter.phone) : '#';
-            const leadWaUrl = getWhatsAppUrl(
-              lead.phone,
-              `Hey ${lead.contact_name}, noticed ${lead.company_name} is actively scaling ads. We built a creative inject tear-sheet for your product category. Open to reviewing it?`
-            );
+        {/* Lead Queue Items Display */}
+        {queueLeads.length === 0 ? (
+          <div className="p-12 rounded-2xl bg-slate-950/40 border border-dashed border-slate-800 text-center space-y-2">
+            <p className="text-sm font-bold text-slate-300">No leads in this queue</p>
+            <p className="text-xs text-slate-500">All cadence touchpoints are up to date.</p>
+          </div>
+        ) : viewMode === 'table' ? (
+          <div className="pt-2">
+            <LeadTableView
+              leads={queueLeads}
+              onOpenDetails={handleOpenLead}
+            />
+          </div>
+        ) : (
+          <div className="space-y-3 pt-2">
+            {queueLeads.map((lead) => {
+              const hunterWaUrl = lead.hunter?.phone ? getWhatsAppUrl(lead.hunter.phone) : '#';
+              const leadWaUrl = getWhatsAppUrl(
+                lead.phone,
+                `Hey ${lead.contact_name}, noticed ${lead.company_name} is actively scaling ads. We built a creative inject tear-sheet for your product category. Open to reviewing it?`
+              );
 
-            return (
-              <div
-                key={lead.id}
-                onClick={() => handleOpenLead(lead)}
-                className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800/90 hover:border-emerald-500/60 shadow-lg hover:shadow-emerald-950/20 transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-3 group"
-              >
-                {/* Left: Lead Overview */}
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center space-x-2">
-                    <h4 className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors truncate">
-                      {lead.company_name}
-                    </h4>
-                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-emerald-400">
-                      Step {lead.cadence_step} ({CADENCE_STEPS[lead.cadence_step]?.dayLabel || 'Day 0'})
-                    </span>
-                    {lead.is_dnc && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-950 border border-rose-800 text-rose-300">
-                        🚫 DNC
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-x-4 text-xs text-slate-400">
-                    <span>Contact: <strong className="text-slate-200">{lead.contact_name}</strong></span>
-                    <span>Phone: <strong className="text-slate-200 font-mono">{lead.phone}</strong></span>
-                    <span>Retainer: <strong className="text-emerald-400">${lead.deal_value?.toLocaleString()}/mo</strong></span>
-                  </div>
-
-                  {/* Hunter Attribution */}
-                  <div className="text-[11px] text-slate-500 flex items-center space-x-1.5 pt-0.5">
-                    <span>👤 Collected by: <strong className="text-cyan-400">{lead.hunter?.full_name || 'Hunter'}</strong></span>
-                  </div>
-                </div>
-
-                {/* Right: 1-Click WhatsApp Direct Hook & Action Buttons */}
-                <div 
-                  onClick={(e) => e.stopPropagation()} 
-                  className="flex items-center space-x-2 shrink-0 self-start md:self-auto"
+              return (
+                <div
+                  key={lead.id}
+                  onClick={() => handleOpenLead(lead)}
+                  className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800/90 hover:border-emerald-500/60 shadow-lg hover:shadow-emerald-950/20 transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-3 group"
                 >
-                  {/* WhatsApp Direct Action */}
-                  <a
-                    href={lead.is_dnc ? undefined : leadWaUrl}
-                    target={lead.is_dnc ? undefined : '_blank'}
-                    rel="noopener noreferrer"
-                    onClick={(e) => lead.is_dnc && e.preventDefault()}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow-md ${
-                      lead.is_dnc
-                        ? 'bg-slate-950 text-slate-600 border border-slate-800 cursor-not-allowed'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50 active:scale-95'
-                    }`}
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>WhatsApp Hook</span>
-                  </a>
+                  {/* Left: Lead Overview */}
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-bold text-white text-sm group-hover:text-emerald-300 transition-colors truncate">
+                        {lead.company_name}
+                      </h4>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-emerald-400">
+                        Step {lead.cadence_step} ({CADENCE_STEPS[lead.cadence_step]?.dayLabel || 'Day 0'})
+                      </span>
+                      {lead.is_dnc && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-950 border border-rose-800 text-rose-300">
+                          🚫 DNC
+                        </span>
+                      )}
+                    </div>
 
-                  {/* Quick Advance Button */}
-                  <button
-                    type="button"
-                    onClick={() => advanceCadence(lead.id, 'seen')}
-                    className="px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center space-x-1 transition-colors"
-                    title="Advance to next cadence follow-up"
+                    <div className="flex flex-wrap items-center gap-x-4 text-xs text-slate-400">
+                      <span>Contact: <strong className="text-slate-200">{lead.contact_name}</strong></span>
+                      <span>Phone: <strong className="text-slate-200 font-mono">{lead.phone}</strong></span>
+                      <span>Retainer: <strong className="text-emerald-400">${lead.deal_value?.toLocaleString()}/mo</strong></span>
+                    </div>
+
+                    {/* Hunter Attribution */}
+                    <div className="text-[11px] text-slate-500 flex items-center space-x-1.5 pt-0.5">
+                      <span>👤 Collected by: <strong className="text-cyan-400">{lead.hunter?.full_name || 'Hunter'}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Right: 1-Click WhatsApp Direct Hook & Action Buttons */}
+                  <div 
+                    onClick={(e) => e.stopPropagation()} 
+                    className="flex items-center space-x-2 shrink-0 self-start md:self-auto"
                   >
-                    <span>Advance</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                    {/* WhatsApp Direct Action */}
+                    <a
+                      href={lead.is_dnc ? undefined : leadWaUrl}
+                      target={lead.is_dnc ? undefined : '_blank'}
+                      rel="noopener noreferrer"
+                      onClick={(e) => lead.is_dnc && e.preventDefault()}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow-md ${
+                        lead.is_dnc
+                          ? 'bg-slate-950 text-slate-600 border border-slate-800 cursor-not-allowed'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50 active:scale-95'
+                      }`}
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>WhatsApp Hook</span>
+                    </a>
+
+                    {/* Quick Advance Button */}
+                    <button
+                      type="button"
+                      onClick={() => advanceCadence(lead.id, 'seen')}
+                      className="px-3 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold flex items-center space-x-1 transition-colors"
+                      title="Advance to next cadence follow-up"
+                    >
+                      <span>Advance</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
       </div>
 

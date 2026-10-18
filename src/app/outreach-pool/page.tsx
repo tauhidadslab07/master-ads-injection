@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/lib/context/app-context';
 import { LeadCard } from '@/components/leads/LeadCard';
+import { LeadTableView } from '@/components/leads/LeadTableView';
 import { Lead } from '@/types/crm';
 import { 
   Zap, 
@@ -14,11 +15,13 @@ import {
   Filter, 
   Lock, 
   CheckCircle2, 
-  Sparkles,
-  Search,
-  RotateCcw,
-  Clock,
-  ArrowRight
+  Sparkles, 
+  Search, 
+  RotateCcw, 
+  Clock, 
+  ArrowRight,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 
 interface OutreachPoolPageProps {
@@ -42,6 +45,7 @@ export default function OutreachPoolPage() {
 
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'cadence' | 'replied' | 'cold' | 'recycle' | 'duplicates'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
   // SECTION ISOLATION GUARD:
   // Exclusively for Hunters and Outreach Specialists. Sales Closers cannot access unless Team Leader.
@@ -229,16 +233,47 @@ export default function OutreachPoolPage() {
           </button>
         </div>
 
-        {/* Search input */}
-        <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search company, phone, email..."
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-500"
-          />
+        {/* View Mode Toggle & Search */}
+        <div className="flex items-center space-x-3 w-full sm:w-auto">
+          {/* Table / Grid Toggle */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-950 border border-slate-800 shrink-0">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                viewMode === 'table'
+                  ? 'bg-emerald-950 border border-emerald-500/60 text-emerald-300 shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Table View (Nexus Outreach Engine)"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold">Table View</span>
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
+                viewMode === 'grid'
+                  ? 'bg-slate-800 text-white shadow'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              title="Grid View (Cards)"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="text-[11px] font-bold">Grid View</span>
+            </button>
+          </div>
+
+          {/* Search input */}
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search company, phone, email..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-500"
+            />
+          </div>
         </div>
       </div>
 
@@ -325,7 +360,7 @@ export default function OutreachPoolPage() {
         </button>
       </div>
 
-      {/* LEADS GRID */}
+      {/* LEADS DISPLAY (TABLE VIEW AS DEFAULT) */}
       {filteredLeads.length === 0 ? (
         <div className="p-16 rounded-3xl bg-slate-900/40 border border-dashed border-slate-800 text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
@@ -336,6 +371,12 @@ export default function OutreachPoolPage() {
             No contacts match the selected stage and channel filters. Add a new lead or adjust your filter selection.
           </p>
         </div>
+      ) : viewMode === 'table' ? (
+        <LeadTableView
+          leads={filteredLeads}
+          onOpenDetails={handleOpenDetails}
+          duplicateLeadIds={duplicateLeadIds}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredLeads.map((lead) => {

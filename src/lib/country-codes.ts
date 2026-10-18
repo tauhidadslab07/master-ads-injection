@@ -74,3 +74,57 @@ export function formatWithCountryCode(countryDialCode: string, rawInput: string)
 
   return `${countryDialCode}${strippedLeadingZero}`;
 }
+
+export const COUNTRY_TIMEZONES: Record<string, string> = {
+  BD: 'Asia/Dhaka',
+  US: 'America/New_York',
+  GB: 'Europe/London',
+  AE: 'Asia/Dubai',
+  CA: 'America/Toronto',
+  AU: 'Australia/Sydney',
+  IN: 'Asia/Kolkata',
+  SA: 'Asia/Riyadh',
+  SG: 'Asia/Singapore',
+  MY: 'Asia/Kuala_Lumpur',
+  DE: 'Europe/Berlin',
+  FR: 'Europe/Paris',
+  IT: 'Europe/Rome',
+  ES: 'Europe/Madrid',
+  NL: 'Europe/Amsterdam',
+  NZ: 'Pacific/Auckland',
+  PK: 'Asia/Karachi',
+  NG: 'Africa/Lagos',
+  ZA: 'Africa/Johannesburg',
+  BR: 'America/Sao_Paulo',
+  QA: 'Asia/Qatar',
+  KW: 'Asia/Kuwait',
+};
+
+/**
+ * Returns formatted local time string and business hours indicator for a country
+ */
+export function getCountryLocalTime(countryCode: string): { timeString: string; isBusinessHours: boolean } {
+  const tz = COUNTRY_TIMEZONES[countryCode] || 'Asia/Dhaka';
+  try {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    const timeString = formatter.format(now);
+
+    const hourFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      hour: 'numeric',
+      hour12: false,
+    });
+    const hour = parseInt(hourFormatter.format(now), 10);
+    const isBusinessHours = hour >= 9 && hour < 18;
+
+    return { timeString, isBusinessHours };
+  } catch {
+    return { timeString: '1:34 PM', isBusinessHours: true };
+  }
+}
