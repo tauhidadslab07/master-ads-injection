@@ -52,7 +52,8 @@ interface AppContextType {
   triggerEmergencyLeave: (memberId: string) => Promise<{ success: boolean; reassignedCount: number }>;
   
   // Cadence & Mistake Guard
-  advanceCadence: (leadId: string, currentReaction?: ClientReaction) => { success: boolean; error?: string };
+  advanceCadence: (leadId: string, currentReaction?: ClientReaction, note?: string) => { success: boolean; error?: string };
+  assignLead: (leadId: string, assigneeId: string) => { success: boolean; message: string };
   updateClientReaction: (leadId: string, reaction: ClientReaction) => void;
   markAsDnc: (leadId: string, reason: string) => void;
   
@@ -537,59 +538,73 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [teamMembers, addActivityNote]);
 
   // Cadence Step Advancement with Mistake Guard Hard-Lock
-  const advanceCadence = useCallback((leadId: string, explicitReaction?: ClientReaction) => {
+  const advanceCadence = useCallback((leadId: string, explicitReaction?: ClientReaction, note?: string) => {
     const lead = hydratedLeads.find(l => l.id === leadId);
     if (!lead) return { success: false, error: 'Lead not found.' };
 
-    const reaction = explicitReaction || lead.last_client_reaction;
+    const currentStep = lead.cadence_step ?? 0;
+    const reaction = explicitReaction || (lead.last_client_reaction !== 'unseen' ? lead.last_client_reaction : undefined);
 
-    // Mistake Guard: Advancing follow-up without updating client reaction is blocked
-    if (!reaction || reaction === 'unseen') {
+    // Mistake Guard: When advancing from Step 1 onwards, last message status must be updated
+    if (currentStep >= 1 && (!reaction || reaction === 'unseen')) {
       const mistakeRecord: MemberActivityMistake = {
         id: `mst-${Date.now()}`,
         lead_id: leadId,
         member_id: currentUser.id,
         mistake_type: 'cadence_advanced_without_reaction',
-        description: `Blocked: Attempted to advance cadence step to Step ${lead.cadence_step + 1} while client reaction was still marked as "Unseen".`,
-        attempted_action: `Advance Cadence (Step ${lead.cadence_step} -> Step ${lead.cadence_step + 1})`,
+        description: `Blocked: Attempted to advance cadence step from Step ${currentStep} while last message status was still unverified ("Unseen").`,
+        attempted_action: `Advance Cadence (Step ${currentStep} -> Step ${currentStep + 1})`,
         created_at: new Date().toISOString()
       };
 
       setMistakes(prev => [mistakeRecord, ...prev]);
       soundEngine.playWarningChime();
 
-      addActivityNote(
-        leadId,
-        `⚠️ Mistake Guard Triggered: Blocked cadence advance because client reaction has not been logged yet.`,
-        [],
-        'mistake'
-      );
-
       return {
         success: false,
-        error: '🛡️ Mistake Guard Block: You cannot advance cadence without logging client reaction (Seen, Replied, Interested, etc.). Mistake logged to audit log.'
+        error: '⚠️ Warning: Last Message Status Update Required! Please record what happened to the previous message (Seen, Replied, Interested, Not Interested) before advancing.'
       };
     }
 
-    const nextStep = lead.cadence_step + 1;
+    const nextStep = currentStep + 1;
     let nextStage = lead.stage;
 
-    // Day 14 (step 4) reached with no reply -> move to Cold
-    if (nextStep >= 5 && lead.last_client_reaction !== 'replied' && lead.last_client_reaction !== 'interested') {
-      nextStage = 'cold';
-    } else if (lead.stage === 'approved' || lead.stage === 'lead_added') {
+    // After 5th follow-up (step 5) -> All Done
+    if (nextStep >= 6) {
+      nextStage = 'all_done';
+    } else {
       nextStage = 'contacted';
     }
 
     updateLead(leadId, {
-      cadence_step: Math.min(nextStep, 5),
+      cadence_step: Math.min(nextStep, 6),
       cadence_last_step_at: new Date().toISOString(),
+      last_client_reaction: reaction || 'unseen',
       stage: nextStage
     });
 
+    // Save per-stage note if provided
+    if (note && note.trim()) {
+      addActivityNote(
+        leadId,
+        `📝 Stage Note (Step ${currentStep}): ${note.trim()}`,
+        [],
+        'note'
+      );
+    }
+
+    const stepLabels: Record<number, string> = {
+      1: '1st Follow-up (FU 1)',
+      2: '2nd Follow-up (FU 2)',
+      3: '3rd Follow-up (FU 3)',
+      4: '4th Follow-up (FU 4)',
+      5: '5th Follow-up (FU 5)',
+      6: '🎉 All Done'
+    };
+
     addActivityNote(
       leadId,
-      `Cadence advanced to Step ${nextStep}. Client reaction verified: [${reaction}].`,
+      `✓ Message Sent! Advanced to ${stepLabels[nextStep] || `Step ${nextStep}`}.${reaction ? ` Last message status: [${reaction}].` : ''}`,
       [],
       'cadence_advance'
     );
@@ -597,6 +612,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     soundEngine.playSuccessChime();
     return { success: true };
   }, [hydratedLeads, currentUser, updateLead, addActivityNote]);
+
+  // Assign Audited Lead to a Team Member (Leader / Deputy)
+  const assignLead = useCallback((leadId: string, assigneeId: string) => {
+    const lead = hydratedLeads.find(l => l.id === leadId);
+    if (!lead) return { success: false, message: 'Lead not found.' };
+
+    const assignee = teamMembers.find(m => m.id === assigneeId);
+    if (!assignee) return { success: false, message: 'Assignee not found.' };
+
+    updateLead(leadId, {
+      current_assignee_id: assigneeId,
+      stage: 'contacted',
+      cadence_step: lead.cadence_step ?? 0,
+    });
+
+    addActivityNote(
+      leadId,
+      `🎯 Assigned to ${assignee.full_name} (${assignee.role}) by ${currentUser.full_name}. Lead is now live in their Today's Work queue.`,
+      [assignee.id],
+      'status_change'
+    );
+
+    soundEngine.playSuccessChime();
+    return { success: true, message: `Lead successfully assigned to ${assignee.full_name}.` };
+  }, [hydratedLeads, teamMembers, currentUser, updateLead, addActivityNote]);
 
   // Update Client Reaction
   const updateClientReaction = useCallback((leadId: string, reaction: ClientReaction) => {
@@ -846,6 +886,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleDeputy,
     triggerEmergencyLeave,
     advanceCadence,
+    assignLead,
     updateClientReaction,
     markAsDnc,
     triggerAudit,

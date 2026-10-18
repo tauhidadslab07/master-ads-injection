@@ -30,6 +30,7 @@ export default function HomePage() {
   const { 
     leads, 
     currentUser, 
+    teamMembers,
     setSelectedLead, 
     setIsLeadDrawerOpen, 
     advanceCadence, 
@@ -38,8 +39,9 @@ export default function HomePage() {
   } = useApp();
 
   const [activeNiche, setActiveNiche] = useState('all');
-  const [activeQueueTab, setActiveQueueTab] = useState('all_due');
+  const [activeQueueTab, setActiveQueueTab] = useState<'all_due' | 'initial' | 'fu1' | 'fu2' | 'fu3' | 'fu4' | 'fu5' | 'all_done'>('all_due');
   const [activePriority, setActivePriority] = useState('all');
+  const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<'my' | 'all' | string>('all');
   const [selectedWhatsAppLine, setSelectedWhatsAppLine] = useState('primary');
   const [dailyGoal, setDailyGoal] = useState(20);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -54,30 +56,39 @@ export default function HomePage() {
     return leads.filter(l => {
       if (l.is_dnc) return false;
 
-      // Queue tab filter
-      if (activeQueueTab === 'engaged') {
-        return l.last_client_reaction === 'replied' || l.last_client_reaction === 'interested';
-      }
-      if (activeQueueTab === 'win_back') {
-        return l.stage === 'recycle_pool' || l.stage === 'cold';
-      }
-      if (activeQueueTab === 'initial') {
-        return l.cadence_step === 0;
-      }
-      if (activeQueueTab === 'fu1') {
-        return l.cadence_step === 1;
-      }
-      if (activeQueueTab === 'fu2') {
-        return l.cadence_step === 2;
-      }
-      if (activeQueueTab === 'fu3') {
-        return l.cadence_step >= 3;
+      // Assignee Filter
+      if (selectedAssigneeFilter === 'my') {
+        if (l.current_assignee_id && l.current_assignee_id !== currentUser.id) {
+          return false;
+        }
+      } else if (selectedAssigneeFilter !== 'all') {
+        if (l.current_assignee_id !== selectedAssigneeFilter) {
+          return false;
+        }
       }
 
+      // Priority Filter
+      if (activePriority === 'hot') {
+        if (l.last_client_reaction !== 'interested') return false;
+      } else if (activePriority === 'warm') {
+        if (l.last_client_reaction !== 'replied' && l.last_client_reaction !== 'seen') return false;
+      } else if (activePriority === 'cold') {
+        if (l.stage !== 'cold' && l.last_client_reaction !== 'not_interested') return false;
+      }
+
+      // Cadence Step Filter
+      if (activeQueueTab === 'initial') return l.cadence_step === 0;
+      if (activeQueueTab === 'fu1') return l.cadence_step === 1;
+      if (activeQueueTab === 'fu2') return l.cadence_step === 2;
+      if (activeQueueTab === 'fu3') return l.cadence_step === 3;
+      if (activeQueueTab === 'fu4') return l.cadence_step === 4;
+      if (activeQueueTab === 'fu5') return l.cadence_step === 5;
+      if (activeQueueTab === 'all_done') return l.cadence_step >= 6 || l.stage === 'all_done';
+
       // Default 'all_due': active leads requiring cadence outreach
-      return l.stage === 'contacted' || l.stage === 'approved' || l.stage === 'lead_added';
+      return (l.stage === 'contacted' || l.stage === 'approved' || l.stage === 'audited') && l.cadence_step < 6;
     });
-  }, [leads, activeQueueTab]);
+  }, [leads, activeQueueTab, selectedAssigneeFilter, activePriority, currentUser]);
 
   const handleOpenLead = (lead: Lead) => {
     setSelectedLead(lead);
@@ -249,96 +260,154 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 5. ACTION QUEUES DUE TODAY SECTION */}
+      {/* 5. TODAY'S WORK & CADENCE ACTION QUEUES SECTION */}
       <div className="space-y-4 pt-2">
-        <div>
-          <h3 className="text-lg font-black text-white tracking-tight">
-            Action Queues Due Today
-          </h3>
-          <p className="text-xs text-slate-400">
-            Zero-friction click-to-chat with automatic follow-up stage advancement
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-lg font-black text-white tracking-tight flex items-center space-x-2">
+                <span>🎯 Today&apos;s Outreach Work</span>
+              </h3>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-950 border border-emerald-500/40 text-emerald-400 text-[10px] font-black uppercase">
+                Active Cadence Engine
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Automated cadence progression: 1st Message → 1st to 5th Follow-up → All Done
+            </p>
+          </div>
+
+          {/* Assignee Filter Dropdown */}
+          <div className="flex items-center space-x-2 shrink-0">
+            <span className="text-xs text-slate-400 font-bold">Assignee:</span>
+            <select
+              value={selectedAssigneeFilter}
+              onChange={(e) => setSelectedAssigneeFilter(e.target.value)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-500 text-xs text-slate-200 font-bold focus:outline-none"
+            >
+              <option value="all">👥 All Team Members</option>
+              <option value="my">👤 My Assigned Work</option>
+              {teamMembers.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.full_name} ({m.role.replace('_', ' ')})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* Action Queues Tabs (Matching Nexus Screenshot) */}
-        <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs select-none">
+        {/* Cadence Stage Tabs (1st Message -> 5th Follow-up -> All Done) */}
+        <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs select-none scrollbar-thin">
           <button
             onClick={() => setActiveQueueTab('all_due')}
-            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all ${
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
               activeQueueTab === 'all_due'
                 ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            All Due ({queueLeads.length})
-          </button>
-
-          <button
-            onClick={() => setActiveQueueTab('engaged')}
-            className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
-              activeQueueTab === 'engaged'
-                ? 'bg-cyan-500 text-slate-950 font-bold shadow-md shadow-cyan-500/20'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            <MessageCircle className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Engaged</span>
-          </button>
-
-          <button
-            onClick={() => setActiveQueueTab('win_back')}
-            className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
-              activeQueueTab === 'win_back'
-                ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>💰 Win-Back</span>
+            <span>🎯 All Active Work</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-emerald-300 font-mono">
+              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'approved' || l.stage === 'audited') && l.cadence_step < 6 && !l.is_dnc).length}
+            </span>
           </button>
 
           <button
             onClick={() => setActiveQueueTab('initial')}
-            className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all ${
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
               activeQueueTab === 'initial'
-                ? 'bg-slate-800 text-white font-bold'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            Initial Outreach
+            <span>🚀 1st Message</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
+              {leads.filter(l => l.cadence_step === 0 && !l.is_dnc).length}
+            </span>
           </button>
 
           <button
             onClick={() => setActiveQueueTab('fu1')}
-            className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all ${
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
               activeQueueTab === 'fu1'
-                ? 'bg-slate-800 text-white font-bold'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            Follow-up 1
+            <span>🔁 1st Follow-up</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
+              {leads.filter(l => l.cadence_step === 1 && !l.is_dnc).length}
+            </span>
           </button>
 
           <button
             onClick={() => setActiveQueueTab('fu2')}
-            className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap flex items-center space-x-1 transition-all ${
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
               activeQueueTab === 'fu2'
-                ? 'bg-slate-800 text-white font-bold'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            <span>Follow-up 2</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-slate-400">1</span>
+            <span>🔁 2nd Follow-up</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
+              {leads.filter(l => l.cadence_step === 2 && !l.is_dnc).length}
+            </span>
           </button>
 
           <button
             onClick={() => setActiveQueueTab('fu3')}
-            className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap transition-all ${
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
               activeQueueTab === 'fu3'
-                ? 'bg-slate-800 text-white font-bold'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
-            Follow-up 3
+            <span>🔁 3rd Follow-up</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
+              {leads.filter(l => l.cadence_step === 3 && !l.is_dnc).length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveQueueTab('fu4')}
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
+              activeQueueTab === 'fu4'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>🔁 4th Follow-up</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
+              {leads.filter(l => l.cadence_step === 4 && !l.is_dnc).length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveQueueTab('fu5')}
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
+              activeQueueTab === 'fu5'
+                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>🔁 5th Follow-up</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
+              {leads.filter(l => l.cadence_step === 5 && !l.is_dnc).length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveQueueTab('all_done')}
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
+              activeQueueTab === 'all_done'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <span>🎉 All Done</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-purple-300 font-mono">
+              {leads.filter(l => (l.cadence_step >= 6 || l.stage === 'all_done') && !l.is_dnc).length}
+            </span>
           </button>
         </div>
 

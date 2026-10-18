@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Lead, CADENCE_STEPS, ClientReaction } from '@/types/crm';
 import { useApp } from '@/lib/context/app-context';
 import { getWhatsAppUrl } from '@/lib/phone-utils';
@@ -15,7 +15,12 @@ import {
   Calendar, 
   ChevronDown, 
   Zap, 
-  Flame, 
+  AlertTriangle,
+  FileText,
+  UserCheck,
+  CheckCircle2,
+  X,
+  Sparkles,
   Lock
 } from 'lucide-react';
 
@@ -23,14 +28,38 @@ interface LeadTableViewProps {
   leads: Lead[];
   onOpenDetails: (lead: Lead) => void;
   duplicateLeadIds?: Set<string>;
+  showAssigneeSelector?: boolean;
 }
 
-export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTableViewProps) {
-  const { advanceCadence, updateClientReaction, updateLead } = useApp();
+export function LeadTableView({ 
+  leads, 
+  onOpenDetails, 
+  duplicateLeadIds,
+  showAssigneeSelector = true 
+}: LeadTableViewProps) {
+  const { 
+    advanceCadence, 
+    updateClientReaction, 
+    updateLead, 
+    assignLead, 
+    addActivityNote, 
+    activities, 
+    teamMembers, 
+    currentUser 
+  } = useApp();
 
-  // Guard against SSR hydration mismatches for local clock
+  // Guard against SSR hydration mismatches for live clock
   const [mounted, setMounted] = useState(false);
   const [, setTick] = useState(0);
+
+  // Status check & Stage advance modal state
+  const [statusModalLead, setStatusModalLead] = useState<Lead | null>(null);
+  const [selectedReaction, setSelectedReaction] = useState<ClientReaction>('seen');
+  const [stageNote, setStageNote] = useState('');
+
+  // Quick note modal state
+  const [noteModalLead, setNoteModalLead] = useState<Lead | null>(null);
+  const [quickNoteText, setQuickNoteText] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -40,10 +69,65 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
     return () => clearInterval(interval);
   }, []);
 
-  const handleAdvance = (e: React.MouseEvent, leadId: string) => {
+  // Map latest notes by leadId
+  const latestNotesByLeadId = useMemo(() => {
+    const map = new Map<string, string>();
+    activities.forEach(act => {
+      if (act.activity_type === 'note' && !map.has(act.lead_id)) {
+        map.set(act.lead_id, act.content);
+      }
+    });
+    return map;
+  }, [activities]);
+
+  // Click advance button
+  const handleAdvanceClick = (e: React.MouseEvent, lead: Lead) => {
     e.stopPropagation();
-    advanceCadence(leadId);
+
+    const currentStep = lead.cadence_step ?? 0;
+
+    // If advancing from Step 1 onwards, last message status must NOT be 'unseen'
+    if (currentStep >= 1 && (!lead.last_client_reaction || lead.last_client_reaction === 'unseen')) {
+      // Trigger the mandatory status modal
+      soundEngine.playWarningChime();
+      setStatusModalLead(lead);
+      setSelectedReaction('seen');
+      setStageNote('');
+      return;
+    }
+
+    // If Step 0, advance immediately to FU 1
+    const res = advanceCadence(lead.id);
+    if (!res.success && res.error) {
+      soundEngine.playWarningChime();
+      setStatusModalLead(lead);
+      setSelectedReaction('seen');
+      setStageNote('');
+    }
+  };
+
+  // Confirm status and advance
+  const handleConfirmAdvanceWithStatus = () => {
+    if (!statusModalLead) return;
+
+    advanceCadence(statusModalLead.id, selectedReaction, stageNote.trim() || undefined);
+    setStatusModalLead(null);
+    setStageNote('');
+  };
+
+  // Submit quick note
+  const handleSaveQuickNote = () => {
+    if (!noteModalLead || !quickNoteText.trim()) return;
+
+    addActivityNote(
+      noteModalLead.id,
+      `📝 ${quickNoteText.trim()}`,
+      [],
+      'note'
+    );
     soundEngine.playSuccessChime();
+    setNoteModalLead(null);
+    setQuickNoteText('');
   };
 
   const handleReactionChange = (e: React.ChangeEvent<HTMLSelectElement>, leadId: string) => {
@@ -62,24 +146,79 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
     soundEngine.playWarningChime();
   };
 
-  const handleSchedulePrompt = (e: React.MouseEvent, lead: Lead) => {
-    e.stopPropagation();
-    onOpenDetails(lead);
+  // Sequential Button Labels based on Cadence Step
+  const getButtonDetails = (step: number) => {
+    switch (step) {
+      case 0:
+        return {
+          label: '✓ 1st Message Sent → Ready for FU 1',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          isDone: false
+        };
+      case 1:
+        return {
+          label: '✓ 1st Follow-up Sent → Ready for FU 2',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          isDone: false
+        };
+      case 2:
+        return {
+          label: '✓ 2nd Follow-up Sent → Ready for FU 3',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          isDone: false
+        };
+      case 3:
+        return {
+          label: '✓ 3rd Follow-up Sent → Ready for FU 4',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          isDone: false
+        };
+      case 4:
+        return {
+          label: '✓ 4th Follow-up Sent → Ready for FU 5',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          isDone: false
+        };
+      case 5:
+        return {
+          label: '✓ 5th Follow-up Sent → All Done',
+          bg: 'bg-teal-500 hover:bg-teal-400 text-slate-950 font-black',
+          isDone: false
+        };
+      default:
+        return {
+          label: '🎉 All Done',
+          bg: 'bg-slate-800 text-slate-400 cursor-default font-bold border border-slate-700',
+          isDone: true
+        };
+    }
+  };
+
+  const getStepPillLabel = (step: number) => {
+    switch (step) {
+      case 0: return '1st Message';
+      case 1: return '1st Follow-up (FU 1)';
+      case 2: return '2nd Follow-up (FU 2)';
+      case 3: return '3rd Follow-up (FU 3)';
+      case 4: return '4th Follow-up (FU 4)';
+      case 5: return '5th Follow-up (FU 5)';
+      default: return '🎉 All Done';
+    }
   };
 
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1017] shadow-2xl">
+    <div className="w-full overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1017] shadow-2xl relative">
       <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-        <table className="w-full text-left border-collapse min-w-[960px]">
+        <table className="w-full text-left border-collapse min-w-[1020px]">
           {/* Table Header */}
           <thead>
-            <tr className="border-b border-slate-800/90 bg-slate-950/70 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+            <tr className="border-b border-slate-800/90 bg-slate-950/80 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
               <th className="py-4 px-5">LEAD & COMPANY</th>
               <th className="py-4 px-4">COUNTRY & FLAG</th>
               <th className="py-4 px-4">WHATSAPP CLICK-TO-CHAT</th>
               <th className="py-4 px-4">CADENCE STAGE</th>
               <th className="py-4 px-4">MESSAGE STATUS</th>
-              <th className="py-4 px-4">PIPELINE STATUS</th>
+              <th className="py-4 px-4">PIPELINE & ASSIGNEE</th>
               <th className="py-4 px-5 text-right">ACTIONS</th>
             </tr>
           </thead>
@@ -87,40 +226,37 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
           {/* Table Body */}
           <tbody className="divide-y divide-slate-800/60 text-xs">
             {leads.map((lead) => {
-              // 1. Country & Timezone
+              // Country & Timezone
               const country = (lead.phone ? detectCountryFromPhone(lead.phone) : null) || COUNTRY_CODES[0];
               const { timeString, isBusinessHours } = mounted 
                 ? getCountryLocalTime(country.code) 
                 : { timeString: '1:34 PM', isBusinessHours: true };
 
-              // 2. Cadence Info
+              // Cadence Info
               const currentStep = lead.cadence_step ?? 0;
-              const nextStep = currentStep + 1;
-              const currentCadenceLabel = currentStep === 0 
-                ? 'Day 0 Pitch' 
-                : currentStep === 1 
-                ? 'Follow-up 1' 
-                : currentStep === 2 
-                ? 'Follow-up 2' 
-                : currentStep === 3 
-                ? 'Follow-up 3' 
-                : 'Final Break-up';
-
-              const nextStepButtonLabel = nextStep <= 3 
-                ? `Message Sent → FU ${nextStep}` 
-                : 'Message Sent → Completed';
+              const buttonDetails = getButtonDetails(currentStep);
+              const stepPill = getStepPillLabel(currentStep);
 
               // Previous message label
-              const lastMsgLabel = currentStep > 0 ? `Follow-up ${currentStep}` : 'Day 0 Pitch';
+              const lastMsgLabel = currentStep > 0 
+                ? (currentStep === 1 ? '1st Message' : `Follow-up ${currentStep - 1}`)
+                : 'Initial';
 
-              // 3. WhatsApp URL
+              // WhatsApp URL
               const waPitchMessage = `Hi, regarding your brand ${lead.company_name}: We noticed your ads are scaling and prepared a creative inject tear-sheet. Open to a 2-min review?`;
               const waUrl = lead.phone ? getWhatsAppUrl(lead.phone, waPitchMessage) : '#';
 
-              // 4. Formatted Display Phone & Company
+              // Display details
               const displayCompany = lead.company_name || 'Brand Lead';
               const phoneSuffix = lead.phone && lead.phone.length > 4 ? lead.phone.slice(-4) : '';
               const isDuplicate = duplicateLeadIds?.has(lead.id);
+
+              // Latest note for this lead
+              const latestNote = latestNotesByLeadId.get(lead.id);
+
+              // Assignee details
+              const assignee = teamMembers.find(m => m.id === lead.current_assignee_id);
+              const isLeaderOrDeputy = currentUser.role === 'team_leader' || currentUser.is_deputy;
 
               return (
                 <tr 
@@ -131,7 +267,7 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
                   }`}
                 >
                   {/* 1. LEAD & COMPANY */}
-                  <td className="py-4 px-5 align-middle">
+                  <td className="py-4 px-5 align-middle max-w-[240px]">
                     <div className="space-y-1.5">
                       <div className="font-bold text-white text-sm group-hover:text-emerald-400 transition-colors line-clamp-1">
                         {displayCompany} {phoneSuffix ? <span className="font-mono text-xs text-slate-400 font-semibold">(+{country.dial_code.replace('+', '')} {phoneSuffix})</span> : null}
@@ -148,9 +284,35 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
                         )}
                       </div>
 
-                      <div className="text-[11px] text-slate-400 flex items-center space-x-1 font-mono">
-                        <span>🗓️</span>
-                        <span>{lead.created_at ? lead.created_at.slice(0, 10) : '2026-10-16'}</span>
+                      {/* LATEST NOTE DISPLAYED AT THE FRONT (Chronological Top) */}
+                      {latestNote && (
+                        <div 
+                          className="flex items-center space-x-1 text-[11px] text-amber-300/90 bg-amber-950/40 border border-amber-500/30 px-2 py-0.5 rounded-md truncate max-w-full"
+                          title={latestNote}
+                        >
+                          <FileText className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span className="truncate">
+                            <strong className="text-amber-200">Note:</strong> {latestNote.replace(/^📝\s*(Stage Note \(Step \d\):|Initial Context Note:)?\s*/, '')}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="text-[11px] text-slate-400 flex items-center justify-between font-mono pt-0.5">
+                        <span className="flex items-center space-x-1">
+                          <span>🗓️</span>
+                          <span>{lead.created_at ? lead.created_at.slice(0, 10) : '2026-10-18'}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setNoteModalLead(lead);
+                            setQuickNoteText('');
+                          }}
+                          className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold hover:underline"
+                        >
+                          + Add Note
+                        </button>
                       </div>
                     </div>
                   </td>
@@ -217,29 +379,30 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
                     )}
                   </td>
 
-                  {/* 4. CADENCE STAGE */}
+                  {/* 4. CADENCE STAGE & DYNAMIC ACTION BUTTON */}
                   <td className="py-4 px-4 align-middle">
                     <div className="space-y-1.5">
                       {/* Current Stage Pill */}
                       <span className="inline-block px-3 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-slate-200 text-xs font-bold">
-                        {currentCadenceLabel}
+                        {stepPill}
                       </span>
 
-                      {/* Advance Button */}
+                      {/* Sequential Advance Button */}
                       <div>
                         <button
                           type="button"
-                          onClick={(e) => handleAdvance(e, lead.id)}
-                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-950/40 active:scale-95 transition-all"
+                          disabled={buttonDetails.isDone}
+                          onClick={(e) => handleAdvanceClick(e, lead)}
+                          className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs shadow-md active:scale-95 transition-all ${buttonDetails.bg}`}
                         >
-                          <Check className="w-3.5 h-3.5 stroke-[3]" />
-                          <span>{nextStepButtonLabel}</span>
+                          {!buttonDetails.isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                          <span>{buttonDetails.label}</span>
                         </button>
                       </div>
                     </div>
                   </td>
 
-                  {/* 5. MESSAGE STATUS */}
+                  {/* 5. MESSAGE STATUS (Mandatory for next stage) */}
                   <td className="py-4 px-4 align-middle">
                     <div className="space-y-1">
                       <div className="relative inline-block">
@@ -247,7 +410,11 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
                           value={lead.last_client_reaction || 'unseen'}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => handleReactionChange(e, lead.id)}
-                          className="px-3 py-1.5 pr-8 rounded-xl bg-slate-900 border border-slate-700 hover:border-slate-600 text-slate-200 text-xs font-bold appearance-none cursor-pointer focus:outline-none focus:border-emerald-500"
+                          className={`px-3 py-1.5 pr-8 rounded-xl bg-slate-900 border text-xs font-bold appearance-none cursor-pointer focus:outline-none ${
+                            lead.last_client_reaction === 'unseen' && currentStep >= 1
+                              ? 'border-amber-500/80 text-amber-300 ring-1 ring-amber-500/40'
+                              : 'border-slate-700 hover:border-slate-600 text-slate-200'
+                          }`}
                         >
                           <option value="unseen">⏳ Unseen</option>
                           <option value="seen">👀 Seen</option>
@@ -265,29 +432,60 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
                     </div>
                   </td>
 
-                  {/* 6. PIPELINE STATUS */}
+                  {/* 6. PIPELINE STATUS & TEAM LEADER ASSIGNEE */}
                   <td className="py-4 px-4 align-middle">
-                    {lead.is_dnc ? (
-                      <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-rose-950/80 border border-rose-500/60 text-rose-300 uppercase tracking-wider">
-                        🚫 DNC
-                      </span>
-                    ) : lead.stage === 'closed_won' ? (
-                      <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 uppercase tracking-wider">
-                        🏆 WON
-                      </span>
-                    ) : lead.stage === 'pending_approval' ? (
-                      <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-amber-950/80 border border-amber-500/60 text-amber-300 uppercase tracking-wider animate-pulse">
-                        ⏳ PENDING
-                      </span>
-                    ) : lead.stage === 'cold' ? (
-                      <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-slate-800 border border-slate-700 text-slate-400 uppercase tracking-wider">
-                        COLD
-                      </span>
-                    ) : (
-                      <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-[#0a1f18] border border-emerald-500/60 text-emerald-400 uppercase tracking-wider">
-                        ACTIVE
-                      </span>
-                    )}
+                    <div className="space-y-1.5">
+                      {/* Pipeline Stage Badge */}
+                      {lead.is_dnc ? (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-rose-950/80 border border-rose-500/60 text-rose-300 uppercase tracking-wider">
+                          🚫 DNC
+                        </span>
+                      ) : lead.cadence_step >= 6 || lead.stage === 'all_done' ? (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-purple-950/80 border border-purple-500/60 text-purple-300 uppercase tracking-wider">
+                          🎉 ALL DONE
+                        </span>
+                      ) : lead.stage === 'closed_won' ? (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 uppercase tracking-wider">
+                          🏆 WON
+                        </span>
+                      ) : lead.stage === 'pending_approval' ? (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-amber-950/80 border border-amber-500/60 text-amber-300 uppercase tracking-wider animate-pulse">
+                          🔍 AUDIT PENDING
+                        </span>
+                      ) : lead.stage === 'approved' || lead.stage === 'audited' ? (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-cyan-950/80 border border-cyan-500/60 text-cyan-300 uppercase tracking-wider">
+                          ✅ AUDITED
+                        </span>
+                      ) : (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-[#0a1f18] border border-emerald-500/60 text-emerald-400 uppercase tracking-wider">
+                          ACTIVE
+                        </span>
+                      )}
+
+                      {/* Team Leader Assign Dropdown or Assignee Badge */}
+                      {showAssigneeSelector && isLeaderOrDeputy ? (
+                        <div className="relative" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={lead.current_assignee_id || ''}
+                            onChange={(e) => assignLead(lead.id, e.target.value)}
+                            className="w-full px-2 py-1 pr-6 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-500 text-[11px] font-bold text-cyan-300 appearance-none focus:outline-none"
+                          >
+                            <option value="">👤 Select Member...</option>
+                            {teamMembers.map(m => (
+                              <option key={m.id} value={m.id}>
+                                {m.full_name} ({m.role.replace('_', ' ')})
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="w-3 h-3 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      ) : assignee ? (
+                        <div className="text-[10px] text-slate-400 flex items-center space-x-1 font-medium">
+                          <UserCheck className="w-3 h-3 text-cyan-400 shrink-0" />
+                          <span className="truncate">{assignee.full_name.split(' ')[0]}</span>
+                        </div>
+                      ) : null}
+                    </div>
                   </td>
 
                   {/* 7. ACTIONS */}
@@ -323,7 +521,10 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
                       {/* Calendar Button (Schedule / Follow-up) */}
                       <button
                         type="button"
-                        onClick={(e) => handleSchedulePrompt(e, lead)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenDetails(lead);
+                        }}
                         title="Schedule Follow-up Reminder"
                         className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/25 transition-all"
                       >
@@ -337,6 +538,156 @@ export function LeadTableView({ leads, onOpenDetails, duplicateLeadIds }: LeadTa
           </tbody>
         </table>
       </div>
+
+      {/* MANDATORY STATUS UPDATE WARNING MODAL */}
+      {statusModalLead && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in"
+          onClick={() => setStatusModalLead(null)}
+        >
+          <div 
+            className="w-full max-w-md bg-slate-900 border border-amber-500/60 rounded-2xl shadow-2xl p-6 space-y-4 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-2.5 text-amber-400">
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/40">
+                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Last Message Status Required</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Lead: <strong className="text-white">{statusModalLead.company_name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setStatusModalLead(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-slate-300 leading-relaxed">
+              ⚠️ You cannot advance to the next follow-up without recording what happened to the previous message. Please select the client reaction:
+            </p>
+
+            {/* Quick Status Pill Selection */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { val: 'seen', label: '👀 Seen' },
+                { val: 'replied', label: '💬 Replied' },
+                { val: 'interested', label: '🔥 Interested' },
+                { val: 'not_interested', label: '❌ Not Interested' },
+                { val: 'objection', label: '⚠️ Objection' },
+              ].map(opt => (
+                <button
+                  key={opt.val}
+                  type="button"
+                  onClick={() => setSelectedReaction(opt.val as ClientReaction)}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-left flex items-center justify-between ${
+                    selectedReaction === opt.val
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-1 ring-amber-500/40'
+                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {selectedReaction === opt.val && <CheckCircle2 className="w-4 h-4 text-amber-400" />}
+                </button>
+              ))}
+            </div>
+
+            {/* Optional Stage Note */}
+            <div>
+              <label className="font-semibold text-slate-300 block mb-1.5">
+                📝 Add Stage Note (Optional):
+              </label>
+              <textarea
+                rows={2}
+                value={stageNote}
+                onChange={(e) => setStageNote(e.target.value)}
+                placeholder="Write any note about this follow-up (e.g. Sent video breakdown, asked about budget)..."
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-amber-500 text-slate-200 text-xs focus:outline-none"
+              />
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setStatusModalLead(null)}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAdvanceWithStatus}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+              >
+                Confirm Status & Advance →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QUICK ADD NOTE MODAL */}
+      {noteModalLead && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in"
+          onClick={() => setNoteModalLead(null)}
+        >
+          <div 
+            className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-2 text-emerald-400">
+                <FileText className="w-5 h-5 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white">Add Stage Note</h3>
+              </div>
+              <button 
+                onClick={() => setNoteModalLead(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-slate-400 text-xs">
+              Lead: <strong className="text-white">{noteModalLead.company_name}</strong>
+            </p>
+
+            <textarea
+              rows={3}
+              autoFocus
+              value={quickNoteText}
+              onChange={(e) => setQuickNoteText(e.target.value)}
+              placeholder="Write note here (e.g. Sourced from TikTok ads, replied saying to text next Tuesday, scaling $20k)..."
+              className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 focus:border-emerald-500 text-slate-200 text-xs focus:outline-none"
+            />
+
+            <div className="flex items-center justify-end space-x-2.5 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setNoteModalLead(null)}
+                className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveQuickNote}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+              >
+                Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

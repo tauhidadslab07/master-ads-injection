@@ -16,7 +16,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Layers,
-  Sparkles
+  Sparkles,
+  Target
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -81,6 +82,20 @@ export function Navbar({
 
           {/* Center Navigation Links (With Role Visibility indicators) */}
           <nav className="hidden md:flex items-center space-x-1 bg-slate-900/90 border border-slate-800/80 p-1 rounded-xl">
+            {/* Today's Work Link */}
+            <Link
+              href="/"
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center space-x-1.5 ${
+                pathname === '/'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/20'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+              title="Today's Outreach Work & Follow-up Action Queues"
+            >
+              <Target className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Today&apos;s Work</span>
+            </Link>
+
             {/* Outreach Pool Link */}
             <Link
               href="/outreach-pool"

@@ -9,12 +9,14 @@ export type LeadStage =
   | 'lead_added'
   | 'pending_approval'
   | 'approved'
+  | 'audited'
   | 'contacted'
   | 'replied'
   | 'audit'
   | 'sales_pipeline'
   | 'cold'
   | 'recycle_pool'
+  | 'all_done'
   | 'archived'
   | 'closed_won'
   | 'closed_lost';
@@ -142,9 +144,11 @@ export interface CadenceDefinition {
 }
 
 export const CADENCE_STEPS: CadenceDefinition[] = [
-  { step: 0, dayLabel: 'Day 0', daysAfterStart: 0, channel: 'whatsapp', description: 'Initial Introduction & Value Hook via WhatsApp' },
-  { step: 1, dayLabel: 'Day 2', daysAfterStart: 2, channel: 'email', description: 'Case Study & Proof Audit via Email' },
-  { step: 2, dayLabel: 'Day 5', daysAfterStart: 5, channel: 'whatsapp', description: 'Quick Follow-up & Voice Note / Quick Loom on WhatsApp' },
-  { step: 3, dayLabel: 'Day 9', daysAfterStart: 9, channel: 'email', description: 'Breakdown of Injected Competitor Ads via Email' },
-  { step: 4, dayLabel: 'Day 14', daysAfterStart: 14, channel: 'whatsapp', description: 'Final Breakup / Free Audit Offer on WhatsApp' },
+  { step: 0, dayLabel: '1st Message', daysAfterStart: 0, channel: 'whatsapp', description: '1st Message (Initial Introduction & Creative Hook)' },
+  { step: 1, dayLabel: '1st Follow-up', daysAfterStart: 2, channel: 'whatsapp', description: '1st Follow-up (Case Study & Performance Proof)' },
+  { step: 2, dayLabel: '2nd Follow-up', daysAfterStart: 5, channel: 'whatsapp', description: '2nd Follow-up (Quick Loom / Creative Tear-sheet)' },
+  { step: 3, dayLabel: '3rd Follow-up', daysAfterStart: 8, channel: 'whatsapp', description: '3rd Follow-up (Competitor Ads Breakdown)' },
+  { step: 4, dayLabel: '4th Follow-up', daysAfterStart: 11, channel: 'whatsapp', description: '4th Follow-up (Offer & Urgency Angle)' },
+  { step: 5, dayLabel: '5th Follow-up', daysAfterStart: 14, channel: 'whatsapp', description: '5th Follow-up (Final Breakup Offer)' },
+  { step: 6, dayLabel: 'All Done', daysAfterStart: 18, channel: 'whatsapp', description: 'All 5 Follow-ups Completed' },
 ];

@@ -43,7 +43,7 @@ export default function OutreachPoolPage() {
     retroactiveDuplicates 
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'cadence' | 'replied' | 'cold' | 'recycle' | 'duplicates'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'raw_outreach' | 'audit' | 'audited' | 'cadence' | 'all_done' | 'cold' | 'recycle' | 'duplicates'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
@@ -89,11 +89,12 @@ export default function OutreachPoolPage() {
         if (!matchesComp && !matchesCont && !matchesPhone && !matchesEmail) return false;
       }
 
-      // Stage / Category Tab
-      if (activeTab === 'pending') return l.stage === 'pending_approval';
-      if (activeTab === 'approved') return l.stage === 'approved';
-      if (activeTab === 'cadence') return l.stage === 'contacted' || l.stage === 'lead_added';
-      if (activeTab === 'replied') return l.stage === 'replied';
+      // Stage / Category Tab (User Workflow Stages)
+      if (activeTab === 'raw_outreach') return l.stage === 'lead_added' || l.stage === 'pending_approval';
+      if (activeTab === 'audit') return l.stage === 'audit' || l.stage === 'pending_approval';
+      if (activeTab === 'audited') return l.stage === 'approved' || l.stage === 'audited';
+      if (activeTab === 'cadence') return l.stage === 'contacted' && l.cadence_step < 6;
+      if (activeTab === 'all_done') return l.stage === 'all_done' || l.cadence_step >= 6;
       if (activeTab === 'cold') return l.stage === 'cold';
       if (activeTab === 'recycle') return l.stage === 'recycle_pool';
       if (activeTab === 'duplicates') return duplicateLeadIds.has(l.id);
@@ -277,7 +278,7 @@ export default function OutreachPoolPage() {
         </div>
       </div>
 
-      {/* STAGE & CATEGORY NAVIGATION TABS */}
+      {/* STAGE & CATEGORY NAVIGATION TABS (User Specified Workflow) */}
       <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 overflow-x-auto scrollbar-none text-xs">
         <button
           onClick={() => setActiveTab('all')}
@@ -285,46 +286,67 @@ export default function OutreachPoolPage() {
             activeTab === 'all' ? 'bg-cyan-950 text-cyan-300 border border-cyan-800' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          All Outreach Leads ({leads.filter(l => l.stage !== 'sales_pipeline' && l.stage !== 'closed_won' && l.stage !== 'closed_lost').length})
+          All Outreach ({leads.filter(l => l.stage !== 'sales_pipeline' && l.stage !== 'closed_won' && l.stage !== 'closed_lost').length})
         </button>
 
         <button
-          onClick={() => setActiveTab('pending')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1 ${
-            activeTab === 'pending' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'text-slate-400 hover:text-amber-300'
+          onClick={() => setActiveTab('raw_outreach')}
+          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
+            activeTab === 'raw_outreach' ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'text-slate-400 hover:text-blue-300'
           }`}
         >
-          <span>Pending Approval</span>
-          <span className="px-1.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px]">
-            {leads.filter(l => l.stage === 'pending_approval').length}
+          <span>📥 1. Raw Outreach</span>
+          <span className="px-1.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px]">
+            {leads.filter(l => (l.stage === 'lead_added' || l.stage === 'pending_approval') && !l.is_dnc).length}
           </span>
         </button>
 
         <button
-          onClick={() => setActiveTab('approved')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
-            activeTab === 'approved' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'text-slate-400 hover:text-emerald-300'
+          onClick={() => setActiveTab('audit')}
+          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
+            activeTab === 'audit' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'text-slate-400 hover:text-amber-300'
           }`}
         >
-          Approved ({leads.filter(l => l.stage === 'approved').length})
+          <span>🔍 2. Audit Stage</span>
+          <span className="px-1.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px]">
+            {leads.filter(l => (l.stage === 'audit' || l.stage === 'pending_approval') && !l.is_dnc).length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('audited')}
+          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
+            activeTab === 'audited' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'text-slate-400 hover:text-emerald-300'
+          }`}
+        >
+          <span>✅ 3. Audited (Ready to Assign)</span>
+          <span className="px-1.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px]">
+            {leads.filter(l => (l.stage === 'approved' || l.stage === 'audited') && !l.is_dnc).length}
+          </span>
         </button>
 
         <button
           onClick={() => setActiveTab('cadence')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
+          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
             activeTab === 'cadence' ? 'bg-cyan-950 text-cyan-300 border border-cyan-800' : 'text-slate-400 hover:text-cyan-300'
           }`}
         >
-          In Cadence ({leads.filter(l => l.stage === 'contacted' || l.stage === 'lead_added').length})
+          <span>🎯 4. In Cadence (Today&apos;s Work)</span>
+          <span className="px-1.5 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px]">
+            {leads.filter(l => l.stage === 'contacted' && l.cadence_step < 6 && !l.is_dnc).length}
+          </span>
         </button>
 
         <button
-          onClick={() => setActiveTab('replied')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
-            activeTab === 'replied' ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'text-slate-400 hover:text-blue-300'
+          onClick={() => setActiveTab('all_done')}
+          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
+            activeTab === 'all_done' ? 'bg-purple-950 text-purple-300 border border-purple-800' : 'text-slate-400 hover:text-purple-300'
           }`}
         >
-          Replied / Ready for Audit ({leads.filter(l => l.stage === 'replied').length})
+          <span>🎉 5. All Done (5 FU Completed)</span>
+          <span className="px-1.5 rounded-full bg-purple-500/20 text-purple-400 text-[10px]">
+            {leads.filter(l => (l.stage === 'all_done' || l.cadence_step >= 6) && !l.is_dnc).length}
+          </span>
         </button>
 
         <button
@@ -334,16 +356,6 @@ export default function OutreachPoolPage() {
           }`}
         >
           Cold ({leads.filter(l => l.stage === 'cold').length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('recycle')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1 ${
-            activeTab === 'recycle' ? 'bg-sky-950 text-sky-300 border border-sky-800' : 'text-slate-400 hover:text-sky-300'
-          }`}
-        >
-          <RotateCcw className="w-3 h-3" />
-          <span>Recycle Pool ({leads.filter(l => l.stage === 'recycle_pool').length})</span>
         </button>
 
         {/* RETROACTIVE DUPLICATE TAB */}
