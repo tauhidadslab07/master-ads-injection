@@ -83,21 +83,26 @@ export function Sidebar({
         bg-slate-950 border-r border-slate-800/80 flex-col shrink-0 min-h-screen text-xs select-none shadow-2xl lg:shadow-none
       `}>
         
-        {/* Brand Header */}
+        {/* Brand Header (Click to navigate to Home Page) */}
         <div className="h-16 flex items-center justify-between px-5 border-b border-slate-850">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-md shadow-emerald-950/40">
+          <Link 
+            href="/"
+            onClick={onMobileClose}
+            className="flex items-center space-x-3 group/brand hover:opacity-95 transition-all cursor-pointer"
+            title="Go to Today's Work / Home Page"
+          >
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-md shadow-emerald-950/40 group-hover/brand:scale-105 group-hover/brand:border-emerald-400 transition-all">
               <Zap className="w-5 h-5 fill-emerald-400 stroke-emerald-950" />
             </div>
             <div>
-              <span className="font-black text-sm tracking-wide text-white block leading-tight">
+              <span className="font-black text-sm tracking-wide text-white block leading-tight group-hover/brand:text-emerald-400 transition-colors">
                 MASTER ADS
               </span>
               <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest block">
                 INJECTION ENGINE
               </span>
             </div>
-          </div>
+          </Link>
 
           {/* Close button on mobile */}
           {isMobileOpen && (
