@@ -29,6 +29,7 @@ import {
   Users,
   ShieldCheck
 } from 'lucide-react';
+import { AssignMemberModal } from '@/components/leads/AssignMemberModal';
 
 export default function LeadStorePage() {
   const { 
@@ -49,6 +50,7 @@ export default function LeadStorePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [bulkAuditorId, setBulkAuditorId] = useState('');
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Note Modal state
@@ -333,55 +335,76 @@ export default function LeadStorePage() {
 
       {/* 4. FLOATING / STICKY BULK ACTIONS BAR (When 1 or more leads are selected) */}
       {selectedLeadIds.size > 0 && (
-        <div className="sticky top-4 z-30 p-3.5 rounded-2xl bg-cyan-950/95 border-2 border-cyan-400 text-white shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-xl bg-cyan-500 text-slate-950 font-black flex items-center justify-center text-xs shadow-md">
-              {selectedLeadIds.size}
+        <div className="sticky top-4 z-30 p-4 rounded-2xl bg-cyan-950/95 border-2 border-cyan-400 text-white shadow-2xl backdrop-blur-md space-y-3 animate-in fade-in slide-in-from-top-2">
+          
+          {/* Top row: Counter, info, modal launcher and cancel */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-cyan-500 text-slate-950 font-black flex items-center justify-center text-sm shadow-md">
+                {selectedLeadIds.size}
+              </div>
+              <div>
+                <p className="font-black text-xs text-white flex items-center space-x-2">
+                  <span>{selectedLeadIds.size}টি লিড সিলেক্ট করা হয়েছে</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                    Audit Assignment
+                  </span>
+                </p>
+                <p className="text-[11px] text-cyan-200">
+                  নিচের মেম্বারের নামের উপর ক্লিক করলেই সবগুলো লিড সাথে সাথে অডিটে চলে যাবে।
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-bold text-xs">
-                {selectedLeadIds.size} Lead(s) Selected for Audit Assignment
-              </p>
-              <p className="text-[10px] text-cyan-200">
-                এক বা একাধিক লিড সিলেক্ট করে একসাথে কোনো মেম্বারকে অডিটের জন্য নির্ধারণ করুন।
-              </p>
+
+            <div className="flex items-center space-x-2">
+              {/* Modal trigger button */}
+              <button
+                type="button"
+                onClick={() => setIsAssignModalOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs shadow-md shadow-cyan-500/20 flex items-center space-x-1.5 transition-all active:scale-95"
+              >
+                <Users className="w-4 h-4" />
+                <span>👥 সব মেম্বার কার্ড ({teamMembers.length} জন)</span>
+              </button>
+
+              {/* Clear selection */}
+              <button
+                type="button"
+                onClick={() => setSelectedLeadIds(new Set())}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
-            {/* Auditor Selector */}
-            <select
-              value={bulkAuditorId}
-              onChange={(e) => setBulkAuditorId(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-slate-900 border border-cyan-400 text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-cyan-300 cursor-pointer"
-            >
-              <option value="">👤 অডিটের জন্য মেম্বার সিলেক্ট করুন...</option>
-              {teamMembers.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
-                </option>
-              ))}
-            </select>
-
-            {/* Button: Assign Selected to Audit */}
-            <button
-              type="button"
-              onClick={handleBulkAssignAuditor}
-              disabled={!bulkAuditorId}
-              className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center space-x-1.5"
-            >
-              <UserCheck className="w-4 h-4 stroke-[2.5]" />
-              <span>🔍 অডিটে পাঠান (Assign for Audit)</span>
-            </button>
-
-            {/* Clear selection */}
-            <button
-              type="button"
-              onClick={() => setSelectedLeadIds(new Set())}
-              className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
-            >
-              Cancel
-            </button>
+          {/* Member Names Row: Direct 1-Click Assignment */}
+          <div className="pt-2.5 border-t border-cyan-800/60 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-black text-amber-300 shrink-0 mr-1 flex items-center space-x-1">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>সরাসরি মেম্বার নির্বাচন করুন:</span>
+            </span>
+            {teamMembers.map(m => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => {
+                  const count = selectedLeadIds.size;
+                  bulkAssignAuditor(Array.from(selectedLeadIds), m.id);
+                  setToastMessage(`🔍 ${count}টি লিড সফলভাবে ${m.full_name}-কে অডিটের জন্য এসাইন করা হয়েছে এবং "2. Audited Lead" সেকশনে পাঠানো হয়েছে!`);
+                  setSelectedLeadIds(new Set());
+                  soundEngine.playSuccessChime();
+                }}
+                className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-amber-500 text-slate-100 hover:text-slate-950 border border-slate-700/80 hover:border-amber-400 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 group"
+                title={`${m.full_name} (${m.role}) কে এসাইন করতে ক্লিক করুন`}
+              >
+                <span className="text-xs">{m.role === 'team_leader' ? '👑' : '👤'}</span>
+                <span className="font-extrabold">{m.full_name}</span>
+                <span className="text-[10px] text-amber-400 group-hover:text-slate-950 font-mono font-bold">
+                  ★{m.consecutive_approvals || 0}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -536,7 +559,21 @@ export default function LeadStorePage() {
                     <td className="py-4 px-5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end space-x-2">
                         
-                        {/* Member Select Dropdown to assign for audit */}
+                        {/* Member Assign Button (Opens Member Modal with all team member cards) */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedLeadIds(new Set([lead.id]));
+                            setIsAssignModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/50 hover:border-amber-400 text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 active:scale-95"
+                          title="মেম্বারদের নাম ও কার্ড দেখে অডিটের জন্য এসাইন করুন"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>মেম্বার নির্বাচন</span>
+                        </button>
+
+                        {/* Member Select Dropdown as quick alternative */}
                         <div className="relative">
                           <select
                             defaultValue=""
@@ -546,10 +583,10 @@ export default function LeadStorePage() {
                                 e.target.value = '';
                               }
                             }}
-                            className="px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/60 hover:border-amber-400 text-xs font-bold text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-500 cursor-pointer transition-all shadow-md shadow-amber-950/30"
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-[11px] font-bold text-slate-300 hover:text-amber-300 focus:outline-none cursor-pointer transition-all"
                             title="অডিট করার জন্য মেম্বার সিলেক্ট করুন"
                           >
-                            <option value="" disabled>👤 অডিটর নির্ধারণ করুন...</option>
+                            <option value="" disabled>👤 ড্রপডাউন...</option>
                             {teamMembers.map(m => (
                               <option key={m.id} value={m.id}>
                                 {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
@@ -749,6 +786,19 @@ export default function LeadStorePage() {
           </div>
         );
       })()}
+
+      {/* 8. ASSIGN MEMBER MODAL (All Member Cards with Instant Assignment) */}
+      <AssignMemberModal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        leadIds={Array.from(selectedLeadIds)}
+        mode="audit"
+        onSuccess={(msg) => {
+          setToastMessage(msg);
+          setSelectedLeadIds(new Set());
+          soundEngine.playSuccessChime();
+        }}
+      />
 
     </div>
   );
