@@ -34,6 +34,8 @@ interface TopHeaderProps {
   onOpenDuplicateModal: () => void;
   onOpenNichesModal?: () => void;
   onOpenMobileDrawer?: () => void;
+  onOpenExportModal?: () => void;
+  onOpenCloudSyncModal?: () => void;
 }
 
 export function TopHeader({
@@ -42,7 +44,9 @@ export function TopHeader({
   onOpenTeamModal,
   onOpenDuplicateModal,
   onOpenNichesModal,
-  onOpenMobileDrawer
+  onOpenMobileDrawer,
+  onOpenExportModal,
+  onOpenCloudSyncModal
 }: TopHeaderProps) {
   const { 
     currentUser, 
@@ -124,14 +128,15 @@ export function TopHeader({
           )}
         </button>
 
-        {/* Export CSV */}
+        {/* Export Leads (Excel / CSV with Filters) */}
         <button
           type="button"
-          onClick={handleExportCsv}
+          onClick={onOpenExportModal || handleExportCsv}
           className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold flex items-center space-x-1.5 transition-colors"
+          title="Export Leads with Custom Niche & Stage Filters"
         >
           <Download className="w-3.5 h-3.5 text-cyan-400" />
-          <span>Export CSV</span>
+          <span>Export</span>
         </button>
 
         {/* Scripts / Focus Mode */}
@@ -144,14 +149,18 @@ export function TopHeader({
           <span>Scripts</span>
         </button>
 
-        {/* Backup */}
+        {/* Central Cloud Database Sync */}
         <button
           type="button"
-          onClick={handleSync}
-          className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold flex items-center space-x-1.5 transition-colors"
+          onClick={onOpenCloudSyncModal || handleSync}
+          className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/60 text-slate-300 font-semibold flex items-center space-x-1.5 transition-colors"
+          title="Central Cloud Database Sync (Supabase Live)"
         >
-          <Database className="w-3.5 h-3.5 text-amber-400" />
-          <span>Backup</span>
+          <Database className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="flex items-center space-x-1">
+            <span>Cloud Sync</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          </span>
         </button>
 
         {/* Bulk Import */}

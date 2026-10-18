@@ -21,6 +21,7 @@ import {
   ArrowLeft,
   Crown,
   Lock,
+  Download,
   X
 } from 'lucide-react';
 
@@ -28,6 +29,8 @@ interface SidebarProps {
   onOpenTeamModal: () => void;
   onOpenBatchModal: () => void;
   onOpenNichesModal?: () => void;
+  onOpenExportModal?: () => void;
+  onOpenCloudSyncModal?: () => void;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -36,6 +39,8 @@ export function Sidebar({
   onOpenTeamModal, 
   onOpenBatchModal, 
   onOpenNichesModal,
+  onOpenExportModal,
+  onOpenCloudSyncModal,
   isMobileOpen = false,
   onMobileClose
 }: SidebarProps) {
@@ -397,13 +402,30 @@ export function Sidebar({
             <span>Cadence Scripts</span>
           </button>
 
-          {/* Backup & Export */}
+          {/* Central Cloud Sync */}
           <button
             type="button"
+            onClick={() => {
+              onOpenCloudSyncModal?.();
+              onMobileClose?.();
+            }}
             className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900/80 transition-colors"
           >
-            <Database className="w-4 h-4 text-amber-400" />
-            <span>Backup & Sync</span>
+            <Database className="w-4 h-4 text-emerald-400" />
+            <span>Central Cloud Sync</span>
+          </button>
+
+          {/* Advanced Export */}
+          <button
+            type="button"
+            onClick={() => {
+              onOpenExportModal?.();
+              onMobileClose?.();
+            }}
+            className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900/80 transition-colors"
+          >
+            <Download className="w-4 h-4 text-cyan-400" />
+            <span>Advanced Export</span>
           </button>
 
           {/* Team & Access */}

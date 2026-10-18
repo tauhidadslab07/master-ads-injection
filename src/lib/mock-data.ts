@@ -235,6 +235,8 @@ export const INITIAL_LEADS: Lead[] = [
     recycled_count: 0,
     is_dnc: false,
     deal_value: 22000,
+    scheduled_callback_date: '2026-10-18',
+    scheduled_callback_reason: 'Prospect travelling in Singapore. Requested contact on Oct 18.',
     created_at: '2026-10-17T08:00:00Z',
     updated_at: '2026-10-18T06:30:00Z'
   },

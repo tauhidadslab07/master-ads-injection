@@ -84,9 +84,57 @@ export function exportLeadsToCsv(leads: Lead[], filename: string = 'master_ads_i
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
-  link.setAttribute('download', filename);
+  link.setAttribute('download', filename.endsWith('.csv') ? filename : `${filename}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Exports leads to formatted Excel Workbook (.xlsx)
+ */
+export function exportLeadsToExcel(leads: Lead[], filename: string = 'master_ads_injection_leads.xlsx'): void {
+  const rows = leads.map(l => ({
+    'ID': l.id,
+    'Company': l.company_name,
+    'Contact Person': l.contact_name,
+    'Phone': l.phone || '',
+    'Email': l.email || '',
+    'Website': l.website || '',
+    'Niche': l.niche ? l.niche.toUpperCase() : 'GENERAL',
+    'Preferred Channel': l.channel,
+    'Pipeline Stage': (l.stage || '').replace('_', ' ').toUpperCase(),
+    'Deal Value ($/mo)': l.deal_value || 0,
+    'Cadence Step': (l.cadence_step ?? 0) >= 6 ? 'All Done' : `Step ${l.cadence_step ?? 0}`,
+    'Last Reaction': l.last_client_reaction || 'unseen',
+    'Current Assignee': l.assignee?.full_name || l.current_assignee_id || 'Unassigned',
+    'Scheduled Callback': l.scheduled_callback_date ? `${l.scheduled_callback_date} (${l.scheduled_callback_reason || ''})` : 'None',
+    'DNC': l.is_dnc ? 'YES' : 'NO',
+    'Created At': l.created_at ? l.created_at.slice(0, 10) : ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 16 }, // ID
+    { wch: 26 }, // Company
+    { wch: 20 }, // Contact Person
+    { wch: 20 }, // Phone
+    { wch: 26 }, // Email
+    { wch: 28 }, // Website
+    { wch: 14 }, // Niche
+    { wch: 16 }, // Channel
+    { wch: 18 }, // Stage
+    { wch: 18 }, // Deal Value
+    { wch: 16 }, // Cadence Step
+    { wch: 16 }, // Last Reaction
+    { wch: 20 }, // Assignee
+    { wch: 26 }, // Scheduled Callback
+    { wch: 10 }, // DNC
+    { wch: 14 }  // Created At
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Master Leads Export');
+  XLSX.writeFile(workbook, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
 }

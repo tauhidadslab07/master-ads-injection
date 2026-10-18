@@ -14,6 +14,8 @@ import { OutreachFocusMode } from '@/components/leads/OutreachFocusMode';
 import { TeamRosterModal } from '@/components/team/TeamRosterModal';
 import { DuplicateReviewModal } from '@/components/leads/DuplicateReviewModal';
 import { NichesModal } from '@/components/leads/NichesModal';
+import { AdvancedExportModal } from '@/components/leads/AdvancedExportModal';
+import { CloudSyncModal } from '@/components/sync/CloudSyncModal';
 
 import { LeaderInspectionBanner } from '@/components/layout/LeaderInspectionBanner';
 import { LoginModal } from '@/components/auth/LoginModal';
@@ -32,6 +34,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isCloudSyncModalOpen, setIsCloudSyncModalOpen] = useState(false);
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-slate-950">
@@ -43,6 +47,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
         onOpenTeamModal={() => setIsTeamModalOpen(true)}
         onOpenBatchModal={() => setIsBatchModalOpen(true)}
         onOpenNichesModal={() => setIsNichesModalOpen(true)}
+        onOpenExportModal={() => setIsExportModalOpen(true)}
+        onOpenCloudSyncModal={() => setIsCloudSyncModalOpen(true)}
       />
 
       {/* Main Right Content Column */}
@@ -56,6 +62,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onOpenTeamModal={() => setIsTeamModalOpen(true)}
           onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)}
           onOpenNichesModal={() => setIsNichesModalOpen(true)}
+          onOpenExportModal={() => setIsExportModalOpen(true)}
+          onOpenCloudSyncModal={() => setIsCloudSyncModalOpen(true)}
         />
 
         {/* Team Leader Impersonation / Inspection Banner */}
@@ -113,6 +121,18 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <LoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      {/* Advanced Leads Bulk Exporter Modal */}
+      <AdvancedExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
+
+      {/* Central Cloud Database Sync Modal */}
+      <CloudSyncModal
+        isOpen={isCloudSyncModalOpen}
+        onClose={() => setIsCloudSyncModalOpen(false)}
       />
     </div>
   );

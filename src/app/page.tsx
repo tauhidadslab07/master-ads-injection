@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { TeamPerformanceModal } from '@/components/analytics/TeamPerformanceModal';
 import { MemberDailyTasksWidget } from '@/components/tasks/MemberDailyTasksWidget';
+import { DailyCallbackAlertBanner } from '@/components/leads/DailyCallbackAlertBanner';
 
 export default function HomePage() {
   const { 
@@ -176,6 +177,9 @@ export default function HomePage() {
       
       {/* 0. TEAM LEADER ASSIGNED DAILY TASKS WIDGET */}
       <MemberDailyTasksWidget />
+
+      {/* 0.5 TODAY'S SCHEDULED CALLBACK DIGEST & MORNING ALERT */}
+      <DailyCallbackAlertBanner />
 
       {/* 1. DAILY OUTREACH VELOCITY CARD (Exact Nexus style) */}
       <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
