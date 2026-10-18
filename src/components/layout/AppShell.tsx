@@ -13,8 +13,10 @@ import { LeadDetailsDrawer } from '@/components/leads/LeadDetailsDrawer';
 import { OutreachFocusMode } from '@/components/leads/OutreachFocusMode';
 import { TeamRosterModal } from '@/components/team/TeamRosterModal';
 import { DuplicateReviewModal } from '@/components/leads/DuplicateReviewModal';
+import { NichesModal } from '@/components/leads/NichesModal';
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
+  const { isNichesModalOpen, setIsNichesModalOpen } = useApp();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -27,6 +29,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <Sidebar
         onOpenTeamModal={() => setIsTeamModalOpen(true)}
         onOpenBatchModal={() => setIsBatchModalOpen(true)}
+        onOpenNichesModal={() => setIsNichesModalOpen(true)}
       />
 
       {/* Main Right Content Column */}
@@ -38,6 +41,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           onOpenBatchModal={() => setIsBatchModalOpen(true)}
           onOpenTeamModal={() => setIsTeamModalOpen(true)}
           onOpenDuplicateModal={() => setIsDuplicateModalOpen(true)}
+          onOpenNichesModal={() => setIsNichesModalOpen(true)}
         />
 
         {/* Banners */}
@@ -75,6 +79,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       <DuplicateReviewModal
         isOpen={isDuplicateModalOpen}
         onClose={() => setIsDuplicateModalOpen(false)}
+      />
+
+      <NichesModal
+        isOpen={isNichesModalOpen}
+        onClose={() => setIsNichesModalOpen(false)}
+        onOpenCreateModal={() => setIsCreateModalOpen(true)}
       />
 
       <LeadDetailsDrawer />

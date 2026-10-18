@@ -22,11 +22,12 @@ import {
 interface SidebarProps {
   onOpenTeamModal: () => void;
   onOpenBatchModal: () => void;
+  onOpenNichesModal?: () => void;
 }
 
-export function Sidebar({ onOpenTeamModal, onOpenBatchModal }: SidebarProps) {
+export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }: SidebarProps) {
   const pathname = usePathname();
-  const { leads, retroactiveDuplicates, currentUser } = useApp();
+  const { leads, retroactiveDuplicates, currentUser, selectedNiche, setIsNichesModalOpen } = useApp();
 
   const isLeader = currentUser.role === 'team_leader';
   const isDeputy = currentUser.is_deputy;
@@ -132,16 +133,22 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal }: SidebarProps) {
             </div>
           </Link>
 
-          {/* Niches / Categories */}
+          {/* Niches / Categories Button */}
           <button
             type="button"
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900/80 transition-colors"
+            onClick={onOpenNichesModal || (() => setIsNichesModalOpen(true))}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all active:scale-98 ${
+              selectedNiche !== 'all'
+                ? 'bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 font-bold'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900/80'
+            }`}
+            title="Inspect Ad Niches & Segmentation Deck"
           >
             <div className="flex items-center space-x-2.5">
-              <FolderKanban className="w-4 h-4 text-slate-400" />
+              <FolderKanban className={`w-4 h-4 ${selectedNiche !== 'all' ? 'text-emerald-400' : 'text-slate-400'}`} />
               <span>Ad Niches</span>
             </div>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900/50 text-emerald-400">
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-900/50 text-emerald-400 border border-emerald-800/60">
               4 N
             </span>
           </button>

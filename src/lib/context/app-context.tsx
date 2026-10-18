@@ -28,6 +28,8 @@ interface AppContextType {
   isFocusModeOpen: boolean;
   simulateEndOfMonth: boolean;
   isEndOfMonth: boolean;
+  selectedNiche: string;
+  isNichesModalOpen: boolean;
   retroactiveDuplicates: { lead: Lead; conflictingLeads: Lead[]; reasons: string[] }[];
   
   // Actions
@@ -37,6 +39,8 @@ interface AppContextType {
   setChannelFilter: (channel: 'all' | 'whatsapp' | 'email') => void;
   setIsFocusModeOpen: (open: boolean) => void;
   setSimulateEndOfMonth: (simulate: boolean) => void;
+  setSelectedNiche: (niche: string) => void;
+  setIsNichesModalOpen: (open: boolean) => void;
   
   // Lead Operations
   checkDuplicate: (phone: string, email: string, company: string, excludeId?: string) => Promise<DuplicateCheckResult>;
@@ -101,6 +105,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'email'>('all');
   const [isFocusModeOpen, setIsFocusModeOpen] = useState<boolean>(false);
   const [simulateEndOfMonth, setSimulateEndOfMonth] = useState<boolean>(false);
+  const [selectedNiche, setSelectedNiche] = useState<string>('all');
+  const [isNichesModalOpen, setIsNichesModalOpen] = useState<boolean>(false);
 
   // Sync Supabase if available
   useEffect(() => {
@@ -924,6 +930,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isFocusModeOpen,
     simulateEndOfMonth,
     isEndOfMonth,
+    selectedNiche,
+    isNichesModalOpen,
     retroactiveDuplicates,
 
     setCurrentUser,
@@ -932,6 +940,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setChannelFilter,
     setIsFocusModeOpen,
     setSimulateEndOfMonth,
+    setSelectedNiche,
+    setIsNichesModalOpen,
 
     checkDuplicate,
     createLead,

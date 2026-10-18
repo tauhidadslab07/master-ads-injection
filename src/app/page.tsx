@@ -28,7 +28,8 @@ import {
   TrendingUp,
   Award,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Layers
 } from 'lucide-react';
 import { TeamPerformanceModal } from '@/components/analytics/TeamPerformanceModal';
 
@@ -39,6 +40,10 @@ export default function HomePage() {
     teamMembers,
     activities,
     mistakes,
+    selectedNiche,
+    setSelectedNiche,
+    isNichesModalOpen,
+    setIsNichesModalOpen,
     setSelectedLead, 
     setIsLeadDrawerOpen, 
     advanceCadence, 
@@ -46,7 +51,7 @@ export default function HomePage() {
     retroactiveDuplicates 
   } = useApp();
 
-  const [activeNiche, setActiveNiche] = useState('all');
+  const [activeNiche, setActiveNiche] = useState(selectedNiche || 'all');
   const [activeQueueTab, setActiveQueueTab] = useState<'all_due' | 'initial' | 'fu1' | 'fu2' | 'fu3' | 'fu4' | 'fu5' | 'callbacks' | 'all_done'>('all_due');
   const [activePriority, setActivePriority] = useState('all');
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<'my' | 'all' | string>('all');
@@ -54,6 +59,13 @@ export default function HomePage() {
   const [dailyGoal, setDailyGoal] = useState(20);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
+
+  // Sync activeNiche when selectedNiche changes from modal or header
+  React.useEffect(() => {
+    if (selectedNiche) {
+      setActiveNiche(selectedNiche);
+    }
+  }, [selectedNiche]);
 
   // Outreach Velocity metrics
   const completedTodayCount = leads.filter(l => l.stage === 'contacted' || l.stage === 'replied').length;
@@ -117,6 +129,24 @@ export default function HomePage() {
         if (l.stage !== 'cold' && l.last_client_reaction !== 'not_interested') return false;
       }
 
+      // Niche Filter
+      if (activeNiche !== 'all') {
+        const ln = (l.niche || '').toLowerCase();
+        const comp = (l.company_name || '').toLowerCase();
+        const web = (l.website || '').toLowerCase();
+
+        if (activeNiche === 'dtc') {
+          const isDtc = ln === 'dtc' || /athletic|nutrition|bio|wear|store|shop|apparel|beauty|fashion/i.test(comp) || /wear|shop|store|brand|bio|health/i.test(web);
+          if (!isDtc) return false;
+        } else if (activeNiche === 'saas') {
+          const isSaas = ln === 'saas' || /cloud|fintech|security|tech|software|vr|ai|systems|data/i.test(comp) || /cloud|io|net|tech|fin/i.test(web);
+          if (!isSaas) return false;
+        } else if (activeNiche === 'agency') {
+          const isAgency = ln === 'agency' || /capital|real estate|logistics|defense|media|solar|consulting|coaching/i.test(comp) || /capital|consulting|media|solar/i.test(web);
+          if (!isAgency) return false;
+        }
+      }
+
       // Cadence Step Filter
       if (activeQueueTab === 'initial') return l.cadence_step === 0 && l.stage !== 'all_done';
       if (activeQueueTab === 'fu1') return l.cadence_step === 1 && l.stage !== 'all_done';
@@ -129,7 +159,7 @@ export default function HomePage() {
       // Default 'all_due': active leads requiring cadence outreach (steps 0 to 5)
       return (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step < 6;
     });
-  }, [leads, activeQueueTab, selectedAssigneeFilter, activePriority, currentUser]);
+  }, [leads, activeQueueTab, selectedAssigneeFilter, activePriority, activeNiche, currentUser]);
 
   const handleOpenLead = (lead: Lead) => {
     setSelectedLead(lead);
@@ -343,14 +373,17 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 3. NICHE FILTER PILLS */}
+      {/* 3. NICHE FILTER PILLS & NICHES DECK LAUNCHER */}
       <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs select-none">
         <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider shrink-0 flex items-center space-x-1">
           <span>NICHE:</span>
         </span>
 
         <button
-          onClick={() => setActiveNiche('all')}
+          onClick={() => {
+            setActiveNiche('all');
+            setSelectedNiche('all');
+          }}
           className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
             activeNiche === 'all'
               ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
@@ -361,10 +394,13 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveNiche('dtc')}
-          className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
+          onClick={() => {
+            setActiveNiche('dtc');
+            setSelectedNiche('dtc');
+          }}
+          className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
             activeNiche === 'dtc'
-              ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
               : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
           }`}
         >
@@ -372,10 +408,13 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveNiche('saas')}
-          className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
+          onClick={() => {
+            setActiveNiche('saas');
+            setSelectedNiche('saas');
+          }}
+          className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
             activeNiche === 'saas'
-              ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
               : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
           }`}
         >
@@ -383,14 +422,28 @@ export default function HomePage() {
         </button>
 
         <button
-          onClick={() => setActiveNiche('agency')}
-          className={`px-3 py-1 rounded-full font-medium whitespace-nowrap transition-all ${
+          onClick={() => {
+            setActiveNiche('agency');
+            setSelectedNiche('agency');
+          }}
+          className={`px-3 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
             activeNiche === 'agency'
-              ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20'
+              ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
               : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
           }`}
         >
           High-Ticket Coaching & Services
+        </button>
+
+        {/* Niche Modal Launcher Button */}
+        <button
+          type="button"
+          onClick={() => setIsNichesModalOpen(true)}
+          className="px-2.5 py-1 rounded-full bg-slate-900 hover:bg-slate-800 border border-emerald-500/50 hover:border-emerald-400 text-emerald-400 font-bold text-[11px] whitespace-nowrap flex items-center space-x-1 transition-all shadow-sm active:scale-95 ml-1"
+          title="Open Ad Niches & Pipeline Segmentation Modal"
+        >
+          <Layers className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Niches Deck →</span>
         </button>
       </div>
 

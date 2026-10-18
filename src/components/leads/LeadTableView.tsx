@@ -289,6 +289,22 @@ export function LeadTableView({
               const isLeaderOrDeputy = currentUser.role === 'team_leader' || currentUser.is_deputy;
               const hasCallback = !!lead.scheduled_callback_date;
 
+              // Dynamic Niche Badge
+              const getNicheBadge = (l: Lead) => {
+                const ln = (l.niche || '').toLowerCase();
+                const comp = (l.company_name || '').toLowerCase();
+                const web = (l.website || '').toLowerCase();
+
+                if (ln === 'dtc' || /athletic|nutrition|bio|wear|store|shop|apparel|beauty|fashion/i.test(comp) || /wear|shop|store|brand|bio|health/i.test(web)) {
+                  return { label: '🛍️ E-Commerce DTC', bg: 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300' };
+                }
+                if (ln === 'saas' || /cloud|fintech|security|tech|software|vr|ai|systems|data/i.test(comp) || /cloud|io|net|tech|fin/i.test(web)) {
+                  return { label: '💻 B2B SaaS', bg: 'bg-purple-950/80 border-purple-500/40 text-purple-300' };
+                }
+                return { label: '👔 High-Ticket Coaching', bg: 'bg-amber-950/80 border-amber-500/40 text-amber-300' };
+              };
+              const nicheBadge = getNicheBadge(lead);
+
               return (
                 <tr 
                   key={lead.id}
@@ -309,8 +325,8 @@ export function LeadTableView({
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#0d2218] border border-emerald-500/40 text-emerald-300">
-                          Website Developer
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${nicheBadge.bg}`}>
+                          {nicheBadge.label}
                         </span>
                         {isDuplicate && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 border border-amber-500 text-amber-300">

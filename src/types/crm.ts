@@ -57,6 +57,7 @@ export interface Lead {
   phone_e164: string;
   channel: OutreachChannel;
   website?: string;
+  niche?: string; // 'dtc' | 'saas' | 'agency'
   stage: LeadStage;
   rejection_reason?: string;
   

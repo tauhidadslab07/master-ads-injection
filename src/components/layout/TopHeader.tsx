@@ -26,13 +26,15 @@ interface TopHeaderProps {
   onOpenBatchModal: () => void;
   onOpenTeamModal: () => void;
   onOpenDuplicateModal: () => void;
+  onOpenNichesModal?: () => void;
 }
 
 export function TopHeader({
   onOpenCreateModal,
   onOpenBatchModal,
   onOpenTeamModal,
-  onOpenDuplicateModal
+  onOpenDuplicateModal,
+  onOpenNichesModal
 }: TopHeaderProps) {
   const { 
     currentUser, 
@@ -40,7 +42,9 @@ export function TopHeader({
     teamMembers, 
     leads, 
     retroactiveDuplicates, 
-    setIsFocusModeOpen 
+    setIsFocusModeOpen,
+    selectedNiche,
+    setIsNichesModalOpen
   } = useApp();
 
   const [searchVal, setSearchVal] = useState('');
@@ -84,13 +88,22 @@ export function TopHeader({
       {/* Center: Action Pill Buttons (Matching Nexus Screenshot) */}
       <div className="hidden xl:flex items-center space-x-1.5">
         
-        {/* Niches */}
+        {/* Niches Button (Click to open Ad Niches & Pipeline Segmentation Modal) */}
         <button
           type="button"
-          className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold flex items-center space-x-1.5 transition-colors"
+          onClick={onOpenNichesModal || (() => setIsNichesModalOpen(true))}
+          className={`px-3 py-1.5 rounded-xl border font-semibold flex items-center space-x-1.5 transition-all active:scale-95 ${
+            selectedNiche !== 'all'
+              ? 'bg-emerald-950 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/50 shadow-md shadow-emerald-950/40'
+              : 'bg-slate-900/90 border-slate-800 hover:border-emerald-500/50 text-slate-300 hover:text-white'
+          }`}
+          title="Manage Ad Niches, Filter Conversion Angles & Target Spend"
         >
           <Layers className="w-3.5 h-3.5 text-emerald-400" />
           <span>Niches</span>
+          {selectedNiche !== 'all' && (
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+          )}
         </button>
 
         {/* Export CSV */}
