@@ -84,7 +84,7 @@ export function LeadDetailsDrawer() {
       if (a.id === lead.original_hunter_id) return -1;
       if (b.id === lead.original_hunter_id) return 1;
       return 0;
-    }).filter(m => m.full_name.toLowerCase().includes(mentionFilter.toLowerCase()));
+    }).filter(m => (m.full_name || '').toLowerCase().includes(mentionFilter.toLowerCase()));
   }, [teamMembers, lead.original_hunter_id, mentionFilter]);
 
   // Clickable preset chips for 1-click posting
@@ -162,8 +162,14 @@ export function LeadDetailsDrawer() {
   const leadWaUrl = lead.phone ? getWhatsAppUrl(lead.phone, `Hi ${lead.contact_name}, this is ${currentUser.full_name} from Master Ads Injection. Regarding your ad strategy for ${lead.company_name}: `) : '#';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-      <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+    <div 
+      className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150"
+      onClick={() => setIsLeadDrawerOpen(false)}
+    >
+      <div 
+        className="absolute inset-y-0 right-0 max-w-full flex pl-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="w-screen max-w-xl bg-slate-900 border-l border-slate-700/80 shadow-2xl flex flex-col h-full">
           
           {/* Header */}
@@ -244,7 +250,7 @@ export function LeadDetailsDrawer() {
                   <span>5-Step Cadence Engine</span>
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-cyan-950 text-cyan-300 border border-cyan-800">
-                  Stage: {lead.stage.replace('_', ' ')}
+                  Stage: {(lead.stage || 'lead_added').replace('_', ' ')}
                 </span>
               </div>
 
@@ -542,7 +548,7 @@ export function LeadDetailsDrawer() {
                         >
                           <span className="font-semibold text-slate-200">{m.full_name}</span>
                           <span className="text-[10px] text-cyan-400 capitalize">
-                            {m.id === lead.original_hunter_id ? '⭐ Original Hunter' : m.role.replace('_', ' ')}
+                            {m.id === lead.original_hunter_id ? '⭐ Original Hunter' : (m.role || '').replace('_', ' ')}
                           </span>
                         </button>
                       ))}
