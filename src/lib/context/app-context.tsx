@@ -30,6 +30,8 @@ interface AppContextType {
   isEndOfMonth: boolean;
   selectedNiche: string;
   isNichesModalOpen: boolean;
+  isCreateModalOpen: boolean;
+  isBatchModalOpen: boolean;
   retroactiveDuplicates: { lead: Lead; conflictingLeads: Lead[]; reasons: string[] }[];
   
   // Actions
@@ -41,6 +43,8 @@ interface AppContextType {
   setSimulateEndOfMonth: (simulate: boolean) => void;
   setSelectedNiche: (niche: string) => void;
   setIsNichesModalOpen: (open: boolean) => void;
+  setIsCreateModalOpen: (open: boolean) => void;
+  setIsBatchModalOpen: (open: boolean) => void;
   
   // Lead Operations
   checkDuplicate: (phone: string, email: string, company: string, excludeId?: string) => Promise<DuplicateCheckResult>;
@@ -51,6 +55,9 @@ interface AppContextType {
   approveLead: (leadId: string) => { success: boolean; message: string };
   passAudit: (leadId: string) => { success: boolean; message: string };
   sendToAudit: (leadId: string) => { success: boolean; message: string };
+  bulkSendToAudit: (leadIds: string[]) => { success: boolean; count: number };
+  bulkPassAudit: (leadIds: string[]) => { success: boolean; count: number };
+  bulkAssignLead: (leadIds: string[], assigneeId: string) => { success: boolean; count: number };
   rejectLead: (leadId: string, reason: string) => { success: boolean; message: string };
   toggleDeputy: (memberId: string) => void;
   
@@ -107,6 +114,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [simulateEndOfMonth, setSimulateEndOfMonth] = useState<boolean>(false);
   const [selectedNiche, setSelectedNiche] = useState<string>('all');
   const [isNichesModalOpen, setIsNichesModalOpen] = useState<boolean>(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
 
   // Sync Supabase if available
   useEffect(() => {
@@ -447,6 +456,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const approveLead = useCallback((leadId: string) => {
     return passAudit(leadId);
   }, [passAudit]);
+
+  // Bulk Send Leads to Audit
+  const bulkSendToAudit = useCallback((leadIds: string[]) => {
+    if (!leadIds.length) return { success: false, count: 0 };
+    setLeads(prev => prev.map(l => {
+      if (leadIds.includes(l.id)) {
+        return {
+          ...l,
+          stage: 'audit',
+          updated_at: new Date().toISOString()
+        };
+      }
+      return l;
+    }));
+    leadIds.forEach(id => {
+      addActivityNote(id, `🔍 Bulk sent to Audit by ${currentUser.full_name}.`, [], 'status_change');
+    });
+    soundEngine.playSuccessChime();
+    return { success: true, count: leadIds.length };
+  }, [currentUser, addActivityNote]);
+
+  // Bulk Pass Audit (Moves to 'audited', ready for TL assignment)
+  const bulkPassAudit = useCallback((leadIds: string[]) => {
+    if (!leadIds.length) return { success: false, count: 0 };
+    setLeads(prev => prev.map(l => {
+      if (leadIds.includes(l.id)) {
+        return {
+          ...l,
+          stage: 'audited',
+          approved_at: new Date().toISOString(),
+          approved_by: currentUser.id,
+          rejection_reason: undefined,
+          updated_at: new Date().toISOString()
+        };
+      }
+      return l;
+    }));
+    leadIds.forEach(id => {
+      addActivityNote(id, `✅ Quality Audit Passed in bulk by ${currentUser.full_name}. Moved to Audited Leads.`, [], 'approval');
+    });
+    soundEngine.playSuccessChime();
+    return { success: true, count: leadIds.length };
+  }, [currentUser, addActivityNote]);
+
+  // Bulk Assign Audited Leads to a Sales Member
+  const bulkAssignLead = useCallback((leadIds: string[], assigneeId: string) => {
+    if (!leadIds.length) return { success: false, count: 0 };
+    const assignee = teamMembers.find(m => m.id === assigneeId);
+    if (!assignee) return { success: false, count: 0 };
+
+    setLeads(prev => prev.map(l => {
+      if (leadIds.includes(l.id)) {
+        return {
+          ...l,
+          current_assignee_id: assigneeId,
+          stage: 'contacted',
+          cadence_step: l.cadence_step ?? 0,
+          updated_at: new Date().toISOString()
+        };
+      }
+      return l;
+    }));
+
+    leadIds.forEach(id => {
+      addActivityNote(
+        id, 
+        `🎯 Bulk assigned to ${assignee.full_name} (${assignee.role}) by ${currentUser.full_name}. Lead is live in their Today's Work dashboard.`, 
+        [assignee.id], 
+        'status_change'
+      );
+    });
+
+    soundEngine.playSuccessChime();
+    return { success: true, count: leadIds.length };
+  }, [teamMembers, currentUser, addActivityNote]);
 
   // Reject Lead with mandatory reason
   const rejectLead = useCallback((leadId: string, reason: string) => {
@@ -932,6 +1016,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isEndOfMonth,
     selectedNiche,
     isNichesModalOpen,
+    isCreateModalOpen,
+    isBatchModalOpen,
     retroactiveDuplicates,
 
     setCurrentUser,
@@ -942,6 +1028,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSimulateEndOfMonth,
     setSelectedNiche,
     setIsNichesModalOpen,
+    setIsCreateModalOpen,
+    setIsBatchModalOpen,
 
     checkDuplicate,
     createLead,
@@ -949,6 +1037,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     approveLead,
     passAudit,
     sendToAudit,
+    bulkSendToAudit,
+    bulkPassAudit,
+    bulkAssignLead,
     rejectLead,
     toggleDeputy,
     triggerEmergencyLeave,

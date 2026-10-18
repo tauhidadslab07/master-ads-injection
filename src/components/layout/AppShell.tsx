@@ -16,9 +16,14 @@ import { DuplicateReviewModal } from '@/components/leads/DuplicateReviewModal';
 import { NichesModal } from '@/components/leads/NichesModal';
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
-  const { isNichesModalOpen, setIsNichesModalOpen } = useApp();
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+  const { 
+    isNichesModalOpen, 
+    setIsNichesModalOpen,
+    isCreateModalOpen,
+    setIsCreateModalOpen,
+    isBatchModalOpen,
+    setIsBatchModalOpen
+  } = useApp();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
 

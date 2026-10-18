@@ -30,15 +30,15 @@ export function MobileNav({ onOpenCreateModal, onOpenTeamModal }: MobileNavProps
           <span>Work</span>
         </Link>
 
-        {/* Outreach Pool */}
+        {/* 1. Lead Store */}
         <Link
-          href="/outreach-pool"
+          href="/lead-store"
           className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[10px] font-medium transition-colors ${
-            pathname === '/outreach-pool' ? 'text-cyan-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            pathname === '/lead-store' ? 'text-cyan-400 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Zap className="w-5 h-5 mb-0.5" />
-          <span>Outreach</span>
+          <span>Store</span>
         </Link>
 
         {/* Floating Center Action Button (+ New Lead) */}
@@ -53,15 +53,15 @@ export function MobileNav({ onOpenCreateModal, onOpenTeamModal }: MobileNavProps
           <span className="text-[10px] font-bold text-cyan-300 mt-1">Add</span>
         </button>
 
-        {/* Sales Pipeline */}
+        {/* 2. Audited Lead */}
         <Link
-          href="/sales-pipeline"
+          href="/audited-leads"
           className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[10px] font-medium transition-colors ${
-            pathname === '/sales-pipeline' ? 'text-teal-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+            pathname === '/audited-leads' ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
           }`}
         >
           <Layers className="w-5 h-5 mb-0.5" />
-          <span>Pipeline</span>
+          <span>Audited</span>
         </Link>
 
         {/* Focus Mode */}
