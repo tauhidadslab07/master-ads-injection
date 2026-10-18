@@ -119,6 +119,7 @@ interface AppContextType {
   createDailyTask: (taskData: Omit<DailyTask, 'id' | 'created_at' | 'assignee_statuses'>) => { success: boolean; task?: DailyTask; error?: string };
   updateDailyTaskStatus: (taskId: string, memberId: string, status: DailyTaskStatus, note?: string, progressCount?: number) => { success: boolean };
   deleteDailyTask: (taskId: string) => void;
+  clearAllData: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1263,6 +1264,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     soundEngine.playSuccessChime();
   }, []);
 
+  // Wipes all leads, activities, mistakes, and daily tasks
+  const clearAllData = useCallback(() => {
+    setLeads([]);
+    setActivities([]);
+    setMistakes([]);
+    setDailyTasks([]);
+    soundEngine.playSuccessChime();
+  }, []);
+
   const value: AppContextType = {
     isAuthenticated,
     isAuthLoaded,
@@ -1335,7 +1345,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     createDailyTask,
     updateDailyTaskStatus,
-    deleteDailyTask
+    deleteDailyTask,
+    clearAllData
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
