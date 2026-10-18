@@ -27,7 +27,7 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }: SidebarProps) {
   const pathname = usePathname();
-  const { leads, retroactiveDuplicates, currentUser, selectedNiche, setIsNichesModalOpen } = useApp();
+  const { leads, retroactiveDuplicates, currentUser, selectedNiche, setIsNichesModalOpen, teamMembers } = useApp();
 
   const isLeader = currentUser.role === 'team_leader';
   const isDeputy = currentUser.is_deputy;
@@ -225,19 +225,58 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
             </span>
           </button>
 
-          {/* Performance Analytics */}
-          <button
-            type="button"
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900/80 transition-colors"
-          >
-            <div className="flex items-center space-x-2.5">
-              <BarChart3 className="w-4 h-4 text-slate-400" />
-              <span>Analytics & ROAS</span>
+          {/* 📊 PERFORMANCE SECTION (পারফরমেন্স) */}
+          <div className="pt-2 pb-1">
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl text-slate-300 font-bold text-xs uppercase tracking-wider bg-slate-900/70 border border-slate-800 mb-1.5">
+              <div className="flex items-center space-x-2">
+                <BarChart3 className="w-3.5 h-3.5 text-purple-400" />
+                <span>Performance (পারফরমেন্স)</span>
+              </div>
             </div>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">
-              5
-            </span>
-          </button>
+
+            {/* Sub-menus */}
+            <div className="pl-2 space-y-1 mt-1 border-l-2 border-purple-500/20 ml-3">
+              {/* 1. Individual Performance */}
+              <Link
+                href="/performance/individual"
+                className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all ${
+                  pathname === '/performance/individual'
+                    ? 'bg-purple-950/90 text-purple-300 border border-purple-500/60 shadow-md shadow-purple-950/50 font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900/80 font-medium'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                  <span>1. Individual Performance</span>
+                </div>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  pathname === '/performance/individual' ? 'bg-purple-900/80 text-purple-200' : 'bg-slate-900 text-slate-400'
+                }`}>
+                  {teamMembers.length}
+                </span>
+              </Link>
+
+              {/* 2. Team Performance */}
+              <Link
+                href="/performance/team"
+                className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all ${
+                  pathname === '/performance/team'
+                    ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 shadow-md shadow-emerald-950/50 font-bold'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900/80 font-medium'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>2. Team Performance</span>
+                </div>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  pathname === '/performance/team' ? 'bg-emerald-900/80 text-emerald-200' : 'bg-slate-900 text-slate-400'
+                }`}>
+                  Funnel
+                </span>
+              </Link>
+            </div>
+          </div>
 
         </div>
 
