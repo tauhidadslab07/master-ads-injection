@@ -76,6 +76,13 @@ interface AppContextType {
   
   // Retroactive duplicate resolution
   resolveDuplicate: (keepLeadId: string, discardLeadId: string) => void;
+
+  // Specific Callback & Snooze
+  setScheduledCallback: (leadId: string, date: string, reason?: string) => void;
+  clearScheduledCallback: (leadId: string) => void;
+
+  // Authentication by User ID & Password
+  loginWithCredentials: (username: string, password: string) => { success: boolean; error?: string };
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -853,6 +860,58 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     soundEngine.playSuccessChime();
   }, [currentUser, addActivityNote]);
 
+  // Set Specific Callback / Snooze Date (Client requested future date e.g. travelling/busy)
+  const setScheduledCallback = useCallback((leadId: string, date: string, reason?: string) => {
+    updateLead(leadId, {
+      scheduled_callback_date: date,
+      scheduled_callback_reason: reason?.trim() || 'Client requested specific callback date'
+    });
+
+    addActivityNote(
+      leadId,
+      `📅 Scheduled Callback set for ${date}.${reason ? ` Reason: "${reason.trim()}"` : ''} by ${currentUser.full_name}.`,
+      [],
+      'callback_scheduled'
+    );
+
+    soundEngine.playSuccessChime();
+  }, [currentUser, updateLead, addActivityNote]);
+
+  // Clear Callback Date
+  const clearScheduledCallback = useCallback((leadId: string) => {
+    updateLead(leadId, {
+      scheduled_callback_date: undefined,
+      scheduled_callback_reason: undefined
+    });
+
+    addActivityNote(
+      leadId,
+      `📅 Scheduled callback cleared by ${currentUser.full_name}. Resumed normal cadence queue.`,
+      [],
+      'status_change'
+    );
+
+    soundEngine.playSuccessChime();
+  }, [currentUser, updateLead, addActivityNote]);
+
+  // Login by User ID & Password (No email needed!)
+  const loginWithCredentials = useCallback((username: string, password: string) => {
+    const member = teamMembers.find(
+      m => m.username.toLowerCase().trim() === username.toLowerCase().trim() && m.password === password.trim()
+    );
+
+    if (!member) {
+      return { success: false, error: 'Invalid User ID or Password. Please try again.' };
+    }
+
+    setCurrentUser(member);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('master_ads_user_id', member.id);
+    }
+    soundEngine.playSuccessChime();
+    return { success: true };
+  }, [teamMembers]);
+
   const value: AppContextType = {
     leads: hydratedLeads,
     teamMembers,
@@ -892,7 +951,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     recycleLead,
     addActivityNote,
     batchImportLeads,
-    resolveDuplicate
+    resolveDuplicate,
+
+    setScheduledCallback,
+    clearScheduledCallback,
+    loginWithCredentials
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

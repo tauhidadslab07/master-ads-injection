@@ -23,14 +23,22 @@ import {
   Sparkles,
   ShieldAlert,
   List,
-  LayoutList
+  LayoutList,
+  BarChart3,
+  TrendingUp,
+  Award,
+  Calendar,
+  AlertCircle
 } from 'lucide-react';
+import { TeamPerformanceModal } from '@/components/analytics/TeamPerformanceModal';
 
 export default function HomePage() {
   const { 
     leads, 
     currentUser, 
     teamMembers,
+    activities,
+    mistakes,
     setSelectedLead, 
     setIsLeadDrawerOpen, 
     advanceCadence, 
@@ -39,22 +47,51 @@ export default function HomePage() {
   } = useApp();
 
   const [activeNiche, setActiveNiche] = useState('all');
-  const [activeQueueTab, setActiveQueueTab] = useState<'all_due' | 'initial' | 'fu1' | 'fu2' | 'fu3' | 'fu4' | 'fu5' | 'all_done'>('all_due');
+  const [activeQueueTab, setActiveQueueTab] = useState<'all_due' | 'initial' | 'fu1' | 'fu2' | 'fu3' | 'fu4' | 'fu5' | 'callbacks' | 'all_done'>('all_due');
   const [activePriority, setActivePriority] = useState('all');
   const [selectedAssigneeFilter, setSelectedAssigneeFilter] = useState<'my' | 'all' | string>('all');
   const [selectedWhatsAppLine, setSelectedWhatsAppLine] = useState('primary');
   const [dailyGoal, setDailyGoal] = useState(20);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
 
   // Outreach Velocity metrics
   const completedTodayCount = leads.filter(l => l.stage === 'contacted' || l.stage === 'replied').length;
   const overdueCount = leads.filter(l => l.stage === 'contacted' && l.cadence_step >= 2).length;
   const progressPercent = Math.min(100, Math.round((completedTodayCount / dailyGoal) * 100));
 
+  // Current Member Specific Accountability & Mistake Analytics
+  const memberAssignedLeads = useMemo(() => {
+    return leads.filter(l => l.current_assignee_id === currentUser.id && !l.is_dnc);
+  }, [leads, currentUser.id]);
+
+  const memberMissedFollowUps = useMemo(() => {
+    return memberAssignedLeads.filter(l => l.stage === 'contacted' && l.cadence_step >= 1 && l.last_client_reaction === 'unseen');
+  }, [memberAssignedLeads]);
+
+  const memberMistakes = useMemo(() => {
+    return mistakes.filter(m => m.member_id === currentUser.id);
+  }, [mistakes, currentUser.id]);
+
+  const memberCompletedToday = useMemo(() => {
+    return activities.filter(a => a.author_id === currentUser.id && (a.activity_type === 'cadence_advance' || a.activity_type === 'status_change')).length;
+  }, [activities, currentUser.id]);
+
+  const memberTaskDueCount = Math.max(memberAssignedLeads.filter(l => l.stage === 'contacted').length, 5);
+  const memberCompletionRate = Math.min(100, Math.round(((memberCompletedToday + (memberTaskDueCount - memberMissedFollowUps.length)) / (memberTaskDueCount * 1.5)) * 100));
+
   // Filter queues
   const queueLeads = useMemo(() => {
     return leads.filter(l => {
       if (l.is_dnc) return false;
+
+      // Callbacks Tab: filter directly by scheduled callback date
+      if (activeQueueTab === 'callbacks') {
+        if (!l.scheduled_callback_date) return false;
+        if (selectedAssigneeFilter === 'my') return l.current_assignee_id === currentUser.id;
+        if (selectedAssigneeFilter !== 'all') return l.current_assignee_id === selectedAssigneeFilter;
+        return true;
+      }
 
       // Only leads in active cadence or completed belong in Today's Work!
       const isInCadence = l.stage === 'contacted' || l.stage === 'replied' || l.stage === 'all_done';
@@ -187,6 +224,123 @@ export default function HomePage() {
           <Volume2 className="w-3.5 h-3.5" />
           <span>Chime Alert</span>
         </button>
+      </div>
+
+      {/* 2.5 MEMBER MISTAKE TRACKING & QUALITY ACCOUNTABILITY CARD */}
+      <div className="p-5 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-base font-bold text-white tracking-wide">
+                  {currentUser.role === 'team_leader' 
+                    ? '👑 Leader Oversight: Team Accountability & Mistake Tracking' 
+                    : `🛡️ ${currentUser.full_name}'s Quality & Mistake Analytics`}
+                </h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                  memberCompletionRate >= 80 
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-600' 
+                    : memberCompletionRate >= 50 
+                    ? 'bg-amber-950 text-amber-300 border-amber-600' 
+                    : 'bg-rose-950 text-rose-300 border-rose-600'
+                }`}>
+                  {memberCompletionRate >= 80 ? '✓ 100% On-Time' : memberCompletionRate >= 50 ? '⏳ In Progress' : '⚠️ Attention Needed'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Daily task completion percentage, failed/missed follow-up tracking, and coaching diagnostics
+              </p>
+            </div>
+          </div>
+
+          {/* Action button to open full team leaderboard */}
+          <button
+            type="button"
+            onClick={() => setIsPerformanceModalOpen(true)}
+            className="self-start sm:self-auto flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-300 font-bold text-xs transition-all shadow-md active:scale-95"
+          >
+            <BarChart3 className="w-4 h-4 text-emerald-400" />
+            <span>Open Team Accountability Leaderboard →</span>
+          </button>
+        </div>
+
+        {/* 4 Metric Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Daily Completion</span>
+            <div className="mt-1 flex items-baseline space-x-2">
+              <span className={`text-xl font-black ${
+                memberCompletionRate >= 80 ? 'text-emerald-400' : memberCompletionRate >= 50 ? 'text-amber-400' : 'text-rose-400'
+              }`}>
+                {memberCompletionRate}%
+              </span>
+              <span className="text-[10px] text-slate-500 font-semibold">Today</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tasks Due</span>
+            <div className="mt-1 flex items-baseline space-x-2">
+              <span className="text-xl font-black text-cyan-300">{memberTaskDueCount}</span>
+              <span className="text-[10px] text-slate-500 font-semibold">Assigned</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Completed Today</span>
+            <div className="mt-1 flex items-baseline space-x-2">
+              <span className="text-xl font-black text-emerald-400">{memberCompletedToday}</span>
+              <span className="text-[10px] text-slate-500 font-semibold">Follow-ups</span>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Failed / Missed</span>
+            <div className="mt-1 flex items-baseline space-x-2">
+              <span className="text-xl font-black text-rose-400">{memberMissedFollowUps.length}</span>
+              <span className="text-[10px] text-rose-400/80 font-semibold">Unsent / Unseen</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Diagnostic Mistake Coaching Tips */}
+        <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="font-bold text-slate-300 flex items-center space-x-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+              <span>Where Common Work Mistakes Occur & How to Avoid Them:</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">
+              Total Logged: {memberMistakes.length} mistakes
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 space-y-1">
+              <p className="font-bold text-amber-300">1. Unverified Message Status</p>
+              <p className="text-slate-400 leading-tight">
+                Advancing follow-ups without recording whether client saw or replied. Always mark status before advancing.
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 space-y-1">
+              <p className="font-bold text-rose-300">2. Missed Follow-up Deadline</p>
+              <p className="text-slate-400 leading-tight">
+                Not contacting assigned leads on the scheduled day counts as a &ldquo;Failed Task&rdquo; in team performance metrics.
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 space-y-1">
+              <p className="font-bold text-cyan-300">3. Travelling / Busy Leads</p>
+              <p className="text-slate-400 leading-tight">
+                When a client asks for contact on a later date, use the 📅 Callback button so the lead is automatically snoozed and alerted on time.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* 3. NICHE FILTER PILLS */}
@@ -401,6 +555,20 @@ export default function HomePage() {
           </button>
 
           <button
+            onClick={() => setActiveQueueTab('callbacks')}
+            className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
+              activeQueueTab === 'callbacks'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'bg-slate-900 border border-amber-600/40 text-amber-300 hover:text-white'
+            }`}
+          >
+            <span>🌟 Callbacks Due</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-amber-300 font-mono font-bold">
+              {leads.filter(l => !!l.scheduled_callback_date && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveQueueTab('all_done')}
             className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap flex items-center space-x-1.5 transition-all ${
               activeQueueTab === 'all_done'
@@ -592,6 +760,11 @@ export default function HomePage() {
 
       </div>
 
+      {/* Team Performance & Daily Accountability Modal */}
+      <TeamPerformanceModal 
+        isOpen={isPerformanceModalOpen} 
+        onClose={() => setIsPerformanceModalOpen(false)} 
+      />
     </div>
   );
 }

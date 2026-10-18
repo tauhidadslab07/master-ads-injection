@@ -47,7 +47,9 @@ export function LeadTableView({
     addActivityNote, 
     activities, 
     teamMembers, 
-    currentUser 
+    currentUser,
+    setScheduledCallback,
+    clearScheduledCallback
   } = useApp();
 
   // Guard against SSR hydration mismatches for live clock
@@ -62,6 +64,11 @@ export function LeadTableView({
   // Quick note modal state
   const [noteModalLead, setNoteModalLead] = useState<Lead | null>(null);
   const [quickNoteText, setQuickNoteText] = useState('');
+
+  // Scheduled Callback modal state
+  const [callbackModalLead, setCallbackModalLead] = useState<Lead | null>(null);
+  const [callbackDate, setCallbackDate] = useState('');
+  const [callbackReason, setCallbackReason] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -148,43 +155,64 @@ export function LeadTableView({
     soundEngine.playWarningChime();
   };
 
+  // Open Callback / Snooze Modal
+  const handleOpenCallbackModal = (e: React.MouseEvent, lead: Lead) => {
+    e.stopPropagation();
+    setCallbackModalLead(lead);
+    const defaultDate = lead.scheduled_callback_date || new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10);
+    setCallbackDate(defaultDate);
+    setCallbackReason(lead.scheduled_callback_reason || 'Client travelling / requested contact on specific date');
+  };
+
+  const handleSaveCallback = () => {
+    if (!callbackModalLead || !callbackDate) return;
+    setScheduledCallback(callbackModalLead.id, callbackDate, callbackReason);
+    setCallbackModalLead(null);
+  };
+
+  const handleClearCallback = () => {
+    if (!callbackModalLead) return;
+    clearScheduledCallback(callbackModalLead.id);
+    setCallbackModalLead(null);
+  };
+
   // Sequential Button Labels based on Cadence Step
   const getButtonDetails = (step: number) => {
     switch (step) {
       case 0:
         return {
-          label: '✓ 1st Message Sent → Ready for FU 1',
-          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          label: '🚀 Send 1st Message',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20',
           isDone: false
         };
       case 1:
         return {
-          label: '✓ 1st Follow-up Sent → Ready for FU 2',
-          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          label: '🔁 Send 1st Follow-up',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20',
           isDone: false
         };
       case 2:
         return {
-          label: '✓ 2nd Follow-up Sent → Ready for FU 3',
-          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          label: '🔁 Send 2nd Follow-up',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20',
           isDone: false
         };
       case 3:
         return {
-          label: '✓ 3rd Follow-up Sent → Ready for FU 4',
-          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          label: '🔁 Send 3rd Follow-up',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20',
           isDone: false
         };
       case 4:
         return {
-          label: '✓ 4th Follow-up Sent → Ready for FU 5',
-          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black',
+          label: '🔁 Send 4th Follow-up',
+          bg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black shadow-lg shadow-emerald-500/20',
           isDone: false
         };
       case 5:
         return {
-          label: '✓ 5th Follow-up Sent → All Done',
-          bg: 'bg-teal-500 hover:bg-teal-400 text-slate-950 font-black',
+          label: '🔁 Send 5th Follow-up',
+          bg: 'bg-teal-500 hover:bg-teal-400 text-slate-950 font-black shadow-lg shadow-teal-500/20',
           isDone: false
         };
       default:
@@ -198,12 +226,12 @@ export function LeadTableView({
 
   const getStepPillLabel = (step: number) => {
     switch (step) {
-      case 0: return '1st Message';
-      case 1: return '1st Follow-up (FU 1)';
-      case 2: return '2nd Follow-up (FU 2)';
-      case 3: return '3rd Follow-up (FU 3)';
-      case 4: return '4th Follow-up (FU 4)';
-      case 5: return '5th Follow-up (FU 5)';
+      case 0: return 'Awaiting 1st Message';
+      case 1: return 'Awaiting FU 1 (1st Follow-up)';
+      case 2: return 'Awaiting FU 2 (2nd Follow-up)';
+      case 3: return 'Awaiting FU 3 (3rd Follow-up)';
+      case 4: return 'Awaiting FU 4 (4th Follow-up)';
+      case 5: return 'Awaiting FU 5 (5th Follow-up)';
       default: return '🎉 All Done';
     }
   };
@@ -259,13 +287,18 @@ export function LeadTableView({
               // Assignee details
               const assignee = teamMembers.find(m => m.id === lead.current_assignee_id);
               const isLeaderOrDeputy = currentUser.role === 'team_leader' || currentUser.is_deputy;
+              const hasCallback = !!lead.scheduled_callback_date;
 
               return (
                 <tr 
                   key={lead.id}
                   onClick={() => onOpenDetails(lead)}
                   className={`group hover:bg-slate-900/50 transition-colors cursor-pointer ${
-                    lead.is_dnc ? 'bg-rose-950/10' : ''
+                    hasCallback 
+                      ? 'bg-gradient-to-r from-amber-950/30 via-slate-950/80 to-slate-900/50 border-l-4 border-l-amber-400 ring-1 ring-amber-500/30'
+                      : lead.is_dnc 
+                      ? 'bg-rose-950/10' 
+                      : ''
                   }`}
                 >
                   {/* 1. LEAD & COMPANY */}
@@ -285,6 +318,23 @@ export function LeadTableView({
                           </span>
                         )}
                       </div>
+
+                      {/* SCHEDULED CALLBACK BADGE (Travelling / Busy client) */}
+                      {lead.scheduled_callback_date && (
+                        <div 
+                          onClick={(e) => handleOpenCallbackModal(e, lead)}
+                          className="flex items-center space-x-1.5 text-[11px] text-amber-300 bg-amber-950/80 border border-amber-500/80 px-2.5 py-1 rounded-lg shadow-md shadow-amber-500/20 cursor-pointer hover:bg-amber-900/60 transition-all font-bold"
+                          title={`Scheduled Callback: ${lead.scheduled_callback_date} • ${lead.scheduled_callback_reason || 'Client asked for follow-up on this date'}`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                          <span>🌟 Callback: {lead.scheduled_callback_date}</span>
+                          {lead.scheduled_callback_reason && (
+                            <span className="text-amber-200/80 font-normal truncate max-w-[120px]">
+                              • {lead.scheduled_callback_reason}
+                            </span>
+                          )}
+                        </div>
+                      )}
 
                       {/* LATEST NOTE DISPLAYED AT THE FRONT (Chronological Top) */}
                       {latestNote && (
@@ -602,15 +652,16 @@ export function LeadTableView({
                         <Clock className="w-3.5 h-3.5" />
                       </button>
 
-                      {/* Calendar Button (Schedule / Follow-up) */}
+                      {/* Calendar Button (Schedule Specific Callback Date e.g. Travelling / Busy) */}
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenDetails(lead);
-                        }}
-                        title="Schedule Follow-up Reminder"
-                        className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/25 transition-all"
+                        onClick={(e) => handleOpenCallbackModal(e, lead)}
+                        title={lead.scheduled_callback_date ? `🌟 Callback scheduled for ${lead.scheduled_callback_date} (${lead.scheduled_callback_reason || 'Busy'})` : '📅 Schedule Callback Date (Travelling / Busy)'}
+                        className={`p-2 rounded-xl border transition-all ${
+                          lead.scheduled_callback_date
+                            ? 'bg-amber-500/20 border-amber-500 text-amber-300 ring-1 ring-amber-500/50 shadow-md shadow-amber-500/20'
+                            : 'bg-cyan-500/10 border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/25'
+                        }`}
                       >
                         <Calendar className="w-3.5 h-3.5" />
                       </button>
@@ -768,6 +819,125 @@ export function LeadTableView({
               >
                 Save Note
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCHEDULED CALLBACK / SNOOZE MODAL (Travelling / Busy Leads) */}
+      {callbackModalLead && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in"
+          onClick={() => setCallbackModalLead(null)}
+        >
+          <div 
+            className="w-full max-w-md bg-slate-900 border border-amber-500/60 rounded-2xl shadow-2xl p-6 space-y-4 text-xs"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-2.5 text-amber-400">
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/40">
+                  <Calendar className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Schedule Future Callback Date</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Lead: <strong className="text-white">{callbackModalLead.company_name}</strong>
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setCallbackModalLead(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-slate-300 leading-relaxed">
+              ✈️ If the prospect replied that they are travelling, busy, or asked to be contacted on a specific date, set it below. The system will highlight this lead and surface it on that date.
+            </p>
+
+            {/* Quick Presets */}
+            <div className="space-y-1.5">
+              <label className="text-slate-400 font-semibold block">⚡ Quick Presets:</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: '+2 Days', days: 2 },
+                  { label: '+3 Days', days: 3 },
+                  { label: '+1 Week', days: 7 }
+                ].map(preset => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + preset.days);
+                      setCallbackDate(d.toISOString().slice(0, 10));
+                    }}
+                    className="p-2 rounded-lg bg-slate-950 border border-slate-800 hover:border-amber-500 text-slate-300 hover:text-amber-300 font-bold text-center transition-colors"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Date Input */}
+            <div>
+              <label className="font-semibold text-slate-300 block mb-1">
+                📅 Contact Date:
+              </label>
+              <input
+                type="date"
+                value={callbackDate}
+                onChange={(e) => setCallbackDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-amber-500 text-slate-200 text-xs focus:outline-none"
+              />
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="font-semibold text-slate-300 block mb-1">
+                📝 Reason / Context:
+              </label>
+              <input
+                type="text"
+                value={callbackReason}
+                onChange={(e) => setCallbackReason(e.target.value)}
+                placeholder="e.g. Travelling in Dubai until next week, requested WhatsApp message then..."
+                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-amber-500 text-slate-200 text-xs focus:outline-none"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              {callbackModalLead.scheduled_callback_date ? (
+                <button
+                  type="button"
+                  onClick={handleClearCallback}
+                  className="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-700/60 text-rose-300 font-bold text-xs"
+                >
+                  Clear Callback
+                </button>
+              ) : <div />}
+
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setCallbackModalLead(null)}
+                  className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCallback}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition-all"
+                >
+                  Save Callback Date
+                </button>
+              </div>
             </div>
           </div>
         </div>

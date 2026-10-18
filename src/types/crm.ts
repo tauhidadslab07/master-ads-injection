@@ -34,6 +34,8 @@ export type ClientReaction =
 export interface TeamMember {
   id: string;
   full_name: string;
+  username: string;
+  password: string;
   email: string;
   phone: string;
   role: TeamRole;
@@ -70,10 +72,14 @@ export interface Lead {
   approved_by?: string;
   
   // Cadence Engine
-  cadence_step: number; // 0..4 (Day 0, Day 2, Day 5, Day 9, Day 14)
+  cadence_step: number; // 0..6 (1st Msg -> FU 1..5 -> All Done)
   cadence_last_step_at?: string;
   last_client_reaction: ClientReaction;
   recycled_count: number;
+
+  // Specific Scheduled Callback / Snooze (Client requested specific contact date)
+  scheduled_callback_date?: string; // YYYY-MM-DD
+  scheduled_callback_reason?: string;
   
   // DNC Hard-Lock
   is_dnc: boolean;
@@ -93,7 +99,7 @@ export interface LeadActivity {
   id: string;
   lead_id: string;
   author_id: string;
-  activity_type: 'note' | 'cadence_advance' | 'status_change' | 'approval' | 'rejection' | 'dnc' | 'mistake';
+  activity_type: 'note' | 'cadence_advance' | 'status_change' | 'approval' | 'rejection' | 'dnc' | 'mistake' | 'callback_scheduled';
   content: string;
   mentions?: string[]; // user IDs
   created_at: string;

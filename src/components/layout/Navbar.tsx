@@ -1,9 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/lib/context/app-context';
+import { LoginModal } from '@/components/auth/LoginModal';
+import { TeamPerformanceModal } from '@/components/analytics/TeamPerformanceModal';
 import { 
   Users, 
   Plus, 
@@ -17,7 +19,11 @@ import {
   ChevronDown,
   Layers,
   Sparkles,
-  Target
+  Target,
+  BarChart3,
+  KeyRound,
+  ArrowRight,
+  Sparkle
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -44,7 +50,10 @@ export function Navbar({
     setSimulateEndOfMonth
   } = useApp();
 
-  const isLeader = currentUser.role === 'team_leader';
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isPerformanceModalOpen, setIsPerformanceModalOpen] = useState(false);
+
+  const isLeader = currentUser.role === 'team_leader' || currentUser.id === 'tauhid';
   const isDeputy = currentUser.is_deputy;
   const isHunter = currentUser.role === 'hunter' || currentUser.role === 'outreach_specialist';
   const isCloser = currentUser.role === 'sales_closer';
@@ -193,9 +202,62 @@ export function Navbar({
               <Calendar className="w-4 h-4" />
             </button>
 
+            {/* Team Performance Analysis Button (Transparency for all) */}
+            <button
+              onClick={() => setIsPerformanceModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/70 border border-emerald-600/50 hover:border-emerald-400 text-emerald-300 hover:bg-emerald-900/60 text-xs font-bold transition-all shadow-md shadow-emerald-950/40"
+              title="Team Performance Analysis & Accountability Leaderboard"
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">📊 Performance</span>
+            </button>
+
+            {/* Team Leader Exclusive "Go" Quick Selector in Header */}
+            {isLeader && (
+              <div className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-cyan-950/70 border border-cyan-500/50 text-xs">
+                <span className="font-extrabold text-cyan-300 text-[11px] flex items-center space-x-1">
+                  <span>🚀 Go:</span>
+                </span>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const target = teamMembers.find(m => m.id === e.target.value);
+                    if (target) setCurrentUser(target);
+                  }}
+                  className="bg-slate-900 border border-slate-700 text-cyan-200 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none focus:border-cyan-400 cursor-pointer"
+                >
+                  <option value="">👤 Select Member...</option>
+                  {teamMembers.filter(m => m.id !== currentUser.id).map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name} ({m.username})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* If inspecting someone else, allow 1-click return to Leader Tauhid */}
+            {currentUser.id !== 'usr-tauhid' && (
+              <button
+                onClick={() => {
+                  const leader = teamMembers.find(m => m.id === 'usr-tauhid' || m.role === 'team_leader');
+                  if (leader) setCurrentUser(leader);
+                }}
+                className="hidden lg:flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500 text-amber-300 text-xs font-bold hover:bg-amber-500/30 transition-all animate-pulse"
+                title="Return to Team Leader (Tauhid)"
+              >
+                <span>👑 Exit to Tauhid</span>
+              </button>
+            )}
+
             {/* Active User / Role Switcher Persona */}
             <div className="relative group">
-              <div className="flex items-center space-x-2 pl-2 border-l border-slate-800 cursor-pointer">
+              <div 
+                onClick={() => setIsLoginModalOpen(true)}
+                className="flex items-center space-x-2 pl-2 border-l border-slate-800 cursor-pointer"
+                title="Click to Switch Member / Log In"
+              >
                 <div className="relative">
                   {currentUser.avatar_url ? (
                     <img
@@ -234,11 +296,36 @@ export function Navbar({
               {/* Persona Switcher Dropdown */}
               <div className="absolute right-0 mt-2 w-72 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl p-2 hidden group-hover:block hover:block z-50 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-2 py-1.5 border-b border-slate-800 mb-1">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Switch Active Persona</p>
-                  <p className="text-[10px] text-slate-500">Test Section Isolation & Leader Gate as different members</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Current Profile</p>
+                  <p className="text-[10px] text-slate-500 font-mono">@{currentUser.username} • Password: 123</p>
                 </div>
 
-                <div className="space-y-1 max-h-80 overflow-y-auto">
+                {/* Team Leader Exclusive "Go" Section */}
+                {isLeader && (
+                  <div className="p-2.5 my-2 rounded-xl bg-cyan-950/70 border border-cyan-500/50 space-y-1.5">
+                    <div className="flex items-center space-x-1.5 text-cyan-300 font-extrabold text-[11px] uppercase tracking-wider">
+                      <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>🚀 Go (Inspect Member Profile)</span>
+                    </div>
+                    <p className="text-[10px] text-slate-300 leading-tight">
+                      Tauhid exclusive: Jump directly to any member&apos;s profile and dashboard:
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      {teamMembers.filter(m => m.id !== currentUser.id).map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => setCurrentUser(m)}
+                          className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 hover:bg-slate-800 text-left text-[11px] font-bold text-white transition-all flex items-center justify-between group/go"
+                        >
+                          <span className="truncate">{m.full_name.split(' ')[0]}</span>
+                          <span className="text-[9px] text-cyan-400 group-hover/go:translate-x-0.5 transition-transform">Go →</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1 max-h-56 overflow-y-auto">
                   {teamMembers.map(m => (
                     <button
                       key={m.id}
@@ -257,7 +344,6 @@ export function Navbar({
                           <p className="font-semibold text-slate-200">{m.full_name}</p>
                           <p className="text-[10px] text-slate-400 capitalize">
                             {m.role.replace('_', ' ')} {m.is_deputy ? '• Deputy' : ''}
-                            {m.is_trusted_hunter ? ' • ⭐ Trusted' : ''}
                           </p>
                         </div>
                       </div>
@@ -267,6 +353,17 @@ export function Navbar({
                     </button>
                   ))}
                 </div>
+
+                {/* Login Modal Button */}
+                <div className="pt-2 mt-2 border-t border-slate-800">
+                  <button
+                    onClick={() => setIsLoginModalOpen(true)}
+                    className="w-full flex items-center justify-center space-x-2 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-colors"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>User ID & Password Login</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -274,6 +371,18 @@ export function Navbar({
 
         </div>
       </div>
+
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+      />
+
+      {/* Team Performance & Accountability Modal */}
+      <TeamPerformanceModal 
+        isOpen={isPerformanceModalOpen} 
+        onClose={() => setIsPerformanceModalOpen(false)} 
+      />
     </header>
   );
 }
