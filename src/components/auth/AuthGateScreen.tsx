@@ -10,27 +10,16 @@ import {
   Eye, 
   EyeOff, 
   AlertCircle, 
-  ArrowRight, 
-  Sparkles, 
-  Copy, 
-  Check, 
-  ChevronDown, 
-  ChevronUp, 
-  Users, 
-  Crown,
-  Layers,
-  Zap
+  ArrowRight
 } from 'lucide-react';
 
 export function AuthGateScreen() {
-  const { teamMembers, loginWithCredentials } = useApp();
+  const { loginWithCredentials } = useApp();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showCredentialsSheet, setShowCredentialsSheet] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,20 +34,6 @@ export function AuthGateScreen() {
 
     if (!res.success) {
       setError(res.error || 'ভুল ইউজার আইডি অথবা পাসওয়ার্ড। আবার চেষ্টা করুন।');
-    }
-  };
-
-  const handleAutoFill = (uname: string, pass: string) => {
-    setUsername(uname);
-    setPassword(pass);
-    setError(null);
-  };
-
-  const copyToClipboard = (text: string, id: string) => {
-    if (navigator?.clipboard) {
-      navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
     }
   };
 
@@ -171,102 +146,7 @@ export function AuthGateScreen() {
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
           </form>
-
-          {/* Credentials Sheet Toggle */}
-          <div className="pt-2 border-t border-slate-800/80">
-            <button
-              type="button"
-              onClick={() => setShowCredentialsSheet(!showCredentialsSheet)}
-              className="w-full py-2.5 px-3 rounded-xl bg-slate-950/70 hover:bg-slate-950 border border-slate-800 text-xs font-bold text-slate-300 hover:text-cyan-300 flex items-center justify-between transition-colors"
-            >
-              <div className="flex items-center space-x-2">
-                <Users className="w-4 h-4 text-cyan-400" />
-                <span>টিম মেম্বারদের আইডি ও পাসওয়ার্ড শিট</span>
-              </div>
-              {showCredentialsSheet ? (
-                <ChevronUp className="w-4 h-4 text-slate-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              )}
-            </button>
-          </div>
         </div>
-
-        {/* Expandable Credentials Sheet */}
-        {showCredentialsSheet && (
-          <div className="bg-slate-900/95 backdrop-blur-xl border border-cyan-500/40 rounded-3xl p-5 shadow-2xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <div className="flex items-center space-x-2 text-cyan-400 font-bold text-xs uppercase tracking-wider">
-                <Sparkles className="w-4 h-4" />
-                <span>অনুমোদিত মেম্বার ক্রেডেনশিয়াল</span>
-              </div>
-              <span className="text-[10px] text-slate-400">
-                যেকোনো মেম্বারের উপর ক্লিক করে অটো-ফিল করুন
-              </span>
-            </div>
-
-            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {teamMembers.map((member) => (
-                <div
-                  key={member.id}
-                  className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-cyan-500/50 transition-all flex items-center justify-between group"
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-cyan-400 shrink-0">
-                      {member.role === 'team_leader' ? (
-                        <Crown className="w-4 h-4 text-amber-400" />
-                      ) : (
-                        member.full_name.charAt(0)
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs font-bold text-white truncate">
-                          {member.full_name}
-                        </span>
-                        {member.role === 'team_leader' && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-amber-950 text-amber-300 border border-amber-800">
-                            LEADER
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] font-mono text-cyan-400">
-                        @{member.username} • <span className="text-slate-400">{member.password}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-1 shrink-0 ml-2">
-                    <button
-                      type="button"
-                      onClick={() => handleAutoFill(member.username, member.password || '123456')}
-                      className="px-2.5 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 border border-cyan-700 text-[10px] font-bold text-cyan-300 hover:text-white transition-colors"
-                      title="অটো-ফিল করুন"
-                    >
-                      অটো-ফিল
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(`ID: ${member.username} | Pass: ${member.password}`, member.id)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-                      title="কপি করুন"
-                    >
-                      {copiedId === member.id ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <p className="text-[10px] text-slate-500 text-center pt-1">
-              * টেস্ট বা দ্রুত প্রবেশের জন্য প্রতিটি অ্যাকাউন্টের বিকল্প পাসওয়ার্ড: <span className="font-mono text-slate-400 font-bold">123456</span>
-            </p>
-          </div>
-        )}
 
         {/* Security Footer Note */}
         <div className="text-center text-[11px] text-slate-500 space-y-1">
