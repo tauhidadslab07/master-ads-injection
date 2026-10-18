@@ -45,6 +45,8 @@ interface AppContextType {
   
   // Approval Gate & Trusted Hunter
   approveLead: (leadId: string) => { success: boolean; message: string };
+  passAudit: (leadId: string) => { success: boolean; message: string };
+  sendToAudit: (leadId: string) => { success: boolean; message: string };
   rejectLead: (leadId: string, reason: string) => { success: boolean; message: string };
   toggleDeputy: (memberId: string) => void;
   
@@ -312,29 +314,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // Hunter attribution logic
     const hunterId = leadData.original_hunter_id || currentUser.id;
-    const hunter = teamMembers.find(m => m.id === hunterId);
 
-    // Trusted Hunter Mode: 20 consecutive approvals grants auto-approval
-    // With a 10% random review sample
-    let initialStage: LeadStage = 'pending_approval';
-    let isAuditSample = false;
-
-    if (hunter) {
-      if (hunter.role === 'team_leader' || hunter.is_deputy) {
-        initialStage = 'approved';
-      } else if (hunter.is_trusted_hunter || hunter.consecutive_approvals >= 20) {
-        // 10% random quality review sample
-        const isRandomAudit = Math.random() < 0.10;
-        if (isRandomAudit) {
-          initialStage = 'pending_approval';
-          isAuditSample = true;
-        } else {
-          initialStage = 'approved';
-        }
-      } else {
-        initialStage = 'pending_approval';
-      }
-    }
+    // Per user requirement: All collected leads start in Raw Outreach ('lead_added')
+    // and remain unassigned until Quality Audit is passed and Team Leader assigns them.
+    const initialStage: LeadStage = 'lead_added';
 
     const newLead: Lead = {
       id: `lead-${Date.now()}`,
@@ -347,10 +330,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       website: leadData.website || '',
       stage: initialStage,
       original_hunter_id: hunterId,
-      current_assignee_id: hunterId,
-      is_audit_sample: isAuditSample,
-      approved_at: initialStage === 'approved' ? new Date().toISOString() : undefined,
-      approved_by: initialStage === 'approved' ? currentUser.id : undefined,
+      current_assignee_id: undefined, // Unassigned until audited and assigned by TL
+      is_audit_sample: false,
       cadence_step: 0,
       cadence_last_step_at: new Date().toISOString(),
       last_client_reaction: 'unseen',
@@ -364,17 +345,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLeads(prev => [newLead, ...prev]);
 
     // Add initial activity
-    const noteText = initialStage === 'approved'
-      ? `Lead created and auto-approved (Trusted Hunter Streak: ${hunter?.consecutive_approvals || 0}). Ready for cadence outreach.`
-      : isAuditSample
-      ? `Lead created by trusted hunter but flagged for 🎲 10% Quality Audit Sample. Pending review.`
-      : `Lead created and queued for Team Leader / Deputy approval gate.`;
-
-    addActivityNote(newLead.id, noteText, [], 'status_change');
+    addActivityNote(newLead.id, `📥 Lead uploaded to Raw Outreach stage by ${currentUser.full_name}. Awaiting Quality Audit.`, [], 'status_change');
 
     // Add user's custom context note if provided
     if (initialNote && initialNote.trim()) {
-      addActivityNote(newLead.id, `📝 Initial Context Note:\n${initialNote.trim()}`, [], 'note');
+      addActivityNote(newLead.id, `📝 Note: ${initialNote.trim()}`, [], 'note');
     }
 
     soundEngine.playSuccessChime();
@@ -398,31 +373,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 
 
-  // Leader / Deputy Approval Gate
-  const approveLead = useCallback((leadId: string) => {
+  // Send lead to Audit Stage
+  const sendToAudit = useCallback((leadId: string) => {
     const lead = hydratedLeads.find(l => l.id === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
-    const canApprove = currentUser.role === 'team_leader' || currentUser.is_deputy;
-    if (!canApprove) {
-      return { success: false, message: 'Only Team Leader or Deputy can approve leads.' };
+    updateLead(leadId, {
+      stage: 'audit'
+    });
+
+    addActivityNote(
+      leadId,
+      `🔍 Sent to Audit Stage by ${currentUser.full_name}. Awaiting quality verification.`,
+      [],
+      'status_change'
+    );
+
+    soundEngine.playSuccessChime();
+    return { success: true, message: 'Lead moved to Audit Stage.' };
+  }, [hydratedLeads, currentUser, updateLead, addActivityNote]);
+
+  // Quality Audit Pass (moves to 'audited', ready for TL assignment)
+  const passAudit = useCallback((leadId: string) => {
+    const lead = hydratedLeads.find(l => l.id === leadId);
+    if (!lead) return { success: false, message: 'Lead not found.' };
+
+    // Increment consecutive approvals for hunter
+    if (lead.original_hunter_id) {
+      setTeamMembers(prev => prev.map(m => {
+        if (m.id === lead.original_hunter_id) {
+          const newStreak = m.consecutive_approvals + 1;
+          return {
+            ...m,
+            consecutive_approvals: newStreak,
+            is_trusted_hunter: newStreak >= 20 ? true : m.is_trusted_hunter
+          };
+        }
+        return m;
+      }));
     }
 
-    // Increment consecutive approvals for the hunter
-    setTeamMembers(prev => prev.map(m => {
-      if (m.id === lead.original_hunter_id) {
-        const newStreak = m.consecutive_approvals + 1;
-        return {
-          ...m,
-          consecutive_approvals: newStreak,
-          is_trusted_hunter: newStreak >= 20 ? true : m.is_trusted_hunter
-        };
-      }
-      return m;
-    }));
-
     updateLead(leadId, {
-      stage: 'approved',
+      stage: 'audited',
       approved_at: new Date().toISOString(),
       approved_by: currentUser.id,
       rejection_reason: undefined
@@ -430,14 +422,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     addActivityNote(
       leadId,
-      `Lead approved by ${currentUser.full_name} (${currentUser.role === 'team_leader' ? 'Team Leader' : 'Deputy'}). Moved to Approved queue.`,
+      `✅ Quality Audit Passed by ${currentUser.full_name}. Moved to Audited Leads (Ready for Team Leader assignment).`,
       [lead.original_hunter_id],
       'approval'
     );
 
     soundEngine.playSuccessChime();
-    return { success: true, message: 'Lead approved successfully.' };
+    return { success: true, message: 'Audit passed successfully! Lead is ready for Team Leader assignment.' };
   }, [hydratedLeads, currentUser, updateLead, addActivityNote]);
+
+  const approveLead = useCallback((leadId: string) => {
+    return passAudit(leadId);
+  }, [passAudit]);
 
   // Reject Lead with mandatory reason
   const rejectLead = useCallback((leadId: string, reason: string) => {
@@ -815,9 +811,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         phone_e164: phone_e164,
         channel: item.channel || 'whatsapp',
         website: item.website || '',
-        stage: 'pending_approval',
+        stage: 'lead_added',
         original_hunter_id: currentUser.id,
-        current_assignee_id: currentUser.id,
+        current_assignee_id: undefined,
         is_audit_sample: false,
         cadence_step: 0,
         cadence_last_step_at: new Date().toISOString(),
@@ -882,6 +878,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     createLead,
     updateLead,
     approveLead,
+    passAudit,
+    sendToAudit,
     rejectLead,
     toggleDeputy,
     triggerEmergencyLeave,

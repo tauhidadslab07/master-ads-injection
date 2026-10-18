@@ -90,10 +90,10 @@ export default function OutreachPoolPage() {
       }
 
       // Stage / Category Tab (User Workflow Stages)
-      if (activeTab === 'raw_outreach') return l.stage === 'lead_added' || l.stage === 'pending_approval';
+      if (activeTab === 'raw_outreach') return l.stage === 'lead_added';
       if (activeTab === 'audit') return l.stage === 'audit' || l.stage === 'pending_approval';
-      if (activeTab === 'audited') return l.stage === 'approved' || l.stage === 'audited';
-      if (activeTab === 'cadence') return l.stage === 'contacted' && l.cadence_step < 6;
+      if (activeTab === 'audited') return l.stage === 'audited' || (l.stage === 'approved' && !l.current_assignee_id);
+      if (activeTab === 'cadence') return (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step < 6;
       if (activeTab === 'all_done') return l.stage === 'all_done' || l.cadence_step >= 6;
       if (activeTab === 'cold') return l.stage === 'cold';
       if (activeTab === 'recycle') return l.stage === 'recycle_pool';
@@ -297,7 +297,7 @@ export default function OutreachPoolPage() {
         >
           <span>📥 1. Raw Outreach</span>
           <span className="px-1.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px]">
-            {leads.filter(l => (l.stage === 'lead_added' || l.stage === 'pending_approval') && !l.is_dnc).length}
+            {leads.filter(l => l.stage === 'lead_added' && !l.is_dnc).length}
           </span>
         </button>
 
@@ -321,7 +321,7 @@ export default function OutreachPoolPage() {
         >
           <span>✅ 3. Audited (Ready to Assign)</span>
           <span className="px-1.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px]">
-            {leads.filter(l => (l.stage === 'approved' || l.stage === 'audited') && !l.is_dnc).length}
+            {leads.filter(l => (l.stage === 'audited' || (l.stage === 'approved' && !l.current_assignee_id)) && !l.is_dnc).length}
           </span>
         </button>
 
@@ -333,7 +333,7 @@ export default function OutreachPoolPage() {
         >
           <span>🎯 4. In Cadence (Today&apos;s Work)</span>
           <span className="px-1.5 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px]">
-            {leads.filter(l => l.stage === 'contacted' && l.cadence_step < 6 && !l.is_dnc).length}
+            {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step < 6 && !l.is_dnc).length}
           </span>
         </button>
 

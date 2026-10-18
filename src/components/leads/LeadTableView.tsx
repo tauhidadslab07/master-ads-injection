@@ -42,6 +42,8 @@ export function LeadTableView({
     updateClientReaction, 
     updateLead, 
     assignLead, 
+    passAudit,
+    sendToAudit,
     addActivityNote, 
     activities, 
     teamMembers, 
@@ -382,54 +384,132 @@ export function LeadTableView({
                   {/* 4. CADENCE STAGE & DYNAMIC ACTION BUTTON */}
                   <td className="py-4 px-4 align-middle">
                     <div className="space-y-1.5">
-                      {/* Current Stage Pill */}
-                      <span className="inline-block px-3 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-slate-200 text-xs font-bold">
-                        {stepPill}
-                      </span>
+                      {lead.stage === 'lead_added' ? (
+                        <>
+                          <span className="inline-block px-3 py-1 rounded-lg bg-blue-950/80 border border-blue-600/60 text-blue-300 text-xs font-bold">
+                            📥 1. RAW OUTREACH
+                          </span>
+                          <div className="flex items-center space-x-1.5 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                passAudit(lead.id);
+                              }}
+                              className="inline-flex items-center space-x-1 px-2.5 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md active:scale-95 transition-all"
+                              title="Directly verify and pass audit"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>✓ Pass Audit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                sendToAudit(lead.id);
+                              }}
+                              className="inline-flex items-center space-x-1 px-2 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold border border-slate-700 active:scale-95 transition-all"
+                              title="Queue for quality audit review"
+                            >
+                              <span>Send to Audit</span>
+                            </button>
+                          </div>
+                        </>
+                      ) : lead.stage === 'audit' || lead.stage === 'pending_approval' ? (
+                        <>
+                          <span className="inline-block px-3 py-1 rounded-lg bg-amber-950/80 border border-amber-600/60 text-amber-300 text-xs font-bold animate-pulse">
+                            🔍 2. IN AUDIT STAGE
+                          </span>
+                          <div className="pt-0.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                passAudit(lead.id);
+                              }}
+                              className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md active:scale-95 transition-all"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>✓ Pass Audit → Audited</span>
+                            </button>
+                          </div>
+                        </>
+                      ) : lead.stage === 'audited' || (lead.stage === 'approved' && !lead.current_assignee_id) ? (
+                        <>
+                          <span className="inline-block px-3 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-xs font-bold">
+                            ✅ 3. AUDITED (READY TO ASSIGN)
+                          </span>
+                          <div className="pt-0.5">
+                            <span className="inline-flex items-center space-x-1 text-[11px] text-cyan-300 font-bold bg-cyan-950/60 px-2 py-1 rounded-lg border border-cyan-700/60">
+                              <span>👉 Select Member in Next Column</span>
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {/* Current Cadence Stage Pill */}
+                          <span className="inline-block px-3 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-slate-200 text-xs font-bold">
+                            {stepPill}
+                          </span>
 
-                      {/* Sequential Advance Button */}
-                      <div>
-                        <button
-                          type="button"
-                          disabled={buttonDetails.isDone}
-                          onClick={(e) => handleAdvanceClick(e, lead)}
-                          className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs shadow-md active:scale-95 transition-all ${buttonDetails.bg}`}
-                        >
-                          {!buttonDetails.isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                          <span>{buttonDetails.label}</span>
-                        </button>
-                      </div>
+                          {/* Sequential Advance Button */}
+                          <div>
+                            <button
+                              type="button"
+                              disabled={buttonDetails.isDone}
+                              onClick={(e) => handleAdvanceClick(e, lead)}
+                              className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs shadow-md active:scale-95 transition-all ${buttonDetails.bg}`}
+                            >
+                              {!buttonDetails.isDone && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                              <span>{buttonDetails.label}</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </td>
 
                   {/* 5. MESSAGE STATUS (Mandatory for next stage) */}
                   <td className="py-4 px-4 align-middle">
-                    <div className="space-y-1">
-                      <div className="relative inline-block">
-                        <select
-                          value={lead.last_client_reaction || 'unseen'}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => handleReactionChange(e, lead.id)}
-                          className={`px-3 py-1.5 pr-8 rounded-xl bg-slate-900 border text-xs font-bold appearance-none cursor-pointer focus:outline-none ${
-                            lead.last_client_reaction === 'unseen' && currentStep >= 1
-                              ? 'border-amber-500/80 text-amber-300 ring-1 ring-amber-500/40'
-                              : 'border-slate-700 hover:border-slate-600 text-slate-200'
-                          }`}
-                        >
-                          <option value="unseen">⏳ Unseen</option>
-                          <option value="seen">👀 Seen</option>
-                          <option value="replied">💬 Replied</option>
-                          <option value="interested">🔥 Interested</option>
-                          <option value="not_interested">❌ Not Interested</option>
-                          <option value="objection">⚠️ Objection</option>
-                        </select>
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    {lead.stage === 'lead_added' || lead.stage === 'audit' || lead.stage === 'pending_approval' || lead.stage === 'audited' ? (
+                      <div className="text-[11px] text-slate-500 italic">
+                        Awaiting Cadence
                       </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <div className="relative inline-block">
+                          <select
+                            value={lead.last_client_reaction || 'unseen'}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => handleReactionChange(e, lead.id)}
+                            className={`px-3 py-1.5 pr-8 rounded-xl bg-slate-900 border text-xs font-bold appearance-none cursor-pointer focus:outline-none ${
+                              lead.last_client_reaction === 'unseen' && currentStep >= 1
+                                ? 'border-amber-500/80 text-amber-300 ring-1 ring-amber-500/40 bg-amber-950/40'
+                                : 'border-slate-700 hover:border-slate-600 text-slate-200'
+                            }`}
+                          >
+                            <option value="unseen">⏳ Unseen</option>
+                            <option value="seen">👀 Seen</option>
+                            <option value="replied">💬 Replied</option>
+                            <option value="interested">🔥 Interested</option>
+                            <option value="not_interested">❌ Not Interested</option>
+                            <option value="objection">⚠️ Objection</option>
+                          </select>
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
 
-                      <p className="text-[10px] text-slate-500 font-medium">
-                        Last Msg ({lastMsgLabel})
-                      </p>
-                    </div>
+                        {lead.last_client_reaction === 'unseen' && currentStep >= 1 ? (
+                          <p className="text-[10px] text-amber-400 font-bold flex items-center space-x-1">
+                            <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                            <span>Update status before FU!</span>
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-slate-500 font-medium">
+                            Last Msg ({lastMsgLabel})
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </td>
 
                   {/* 6. PIPELINE STATUS & TEAM LEADER ASSIGNEE */}
@@ -444,45 +524,49 @@ export function LeadTableView({
                         <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-purple-950/80 border border-purple-500/60 text-purple-300 uppercase tracking-wider">
                           🎉 ALL DONE
                         </span>
-                      ) : lead.stage === 'closed_won' ? (
-                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 uppercase tracking-wider">
-                          🏆 WON
+                      ) : lead.stage === 'lead_added' ? (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-blue-950/80 border border-blue-500/60 text-blue-300 uppercase tracking-wider">
+                          📥 RAW LEAD
                         </span>
-                      ) : lead.stage === 'pending_approval' ? (
+                      ) : lead.stage === 'audit' || lead.stage === 'pending_approval' ? (
                         <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-amber-950/80 border border-amber-500/60 text-amber-300 uppercase tracking-wider animate-pulse">
                           🔍 AUDIT PENDING
                         </span>
-                      ) : lead.stage === 'approved' || lead.stage === 'audited' ? (
-                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-cyan-950/80 border border-cyan-500/60 text-cyan-300 uppercase tracking-wider">
-                          ✅ AUDITED
+                      ) : lead.stage === 'audited' || (lead.stage === 'approved' && !lead.current_assignee_id) ? (
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-cyan-950/80 border border-cyan-400 text-cyan-300 uppercase tracking-wider animate-pulse">
+                          ✅ AUDITED (UNASSIGNED)
                         </span>
                       ) : (
                         <span className="inline-block px-3 py-1 rounded-full text-[11px] font-black bg-[#0a1f18] border border-emerald-500/60 text-emerald-400 uppercase tracking-wider">
-                          ACTIVE
+                          ACTIVE CADENCE
                         </span>
                       )}
 
                       {/* Team Leader Assign Dropdown or Assignee Badge */}
-                      {showAssigneeSelector && isLeaderOrDeputy ? (
+                      {showAssigneeSelector && (lead.stage === 'audited' || !lead.current_assignee_id || isLeaderOrDeputy) ? (
                         <div className="relative" onClick={(e) => e.stopPropagation()}>
                           <select
                             value={lead.current_assignee_id || ''}
                             onChange={(e) => assignLead(lead.id, e.target.value)}
-                            className="w-full px-2 py-1 pr-6 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-500 text-[11px] font-bold text-cyan-300 appearance-none focus:outline-none"
+                            className={`w-full px-2 py-1 pr-6 rounded-lg text-[11px] font-bold appearance-none focus:outline-none transition-all ${
+                              lead.stage === 'audited' || !lead.current_assignee_id
+                                ? 'bg-cyan-950 border-2 border-cyan-400 text-cyan-200 ring-2 ring-cyan-500/40'
+                                : 'bg-slate-900 border border-slate-700 hover:border-cyan-500 text-cyan-300'
+                            }`}
                           >
-                            <option value="">👤 Select Member...</option>
+                            <option value="">👤 Select Member to Assign...</option>
                             {teamMembers.map(m => (
                               <option key={m.id} value={m.id}>
                                 {m.full_name} ({m.role.replace('_', ' ')})
                               </option>
                             ))}
                           </select>
-                          <ChevronDown className="w-3 h-3 text-slate-500 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <ChevronDown className="w-3 h-3 text-cyan-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                         </div>
                       ) : assignee ? (
-                        <div className="text-[10px] text-slate-400 flex items-center space-x-1 font-medium">
-                          <UserCheck className="w-3 h-3 text-cyan-400 shrink-0" />
-                          <span className="truncate">{assignee.full_name.split(' ')[0]}</span>
+                        <div className="text-[10px] text-slate-300 flex items-center space-x-1.5 font-bold bg-slate-900 px-2 py-1 rounded-md border border-slate-800">
+                          <UserCheck className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                          <span className="truncate">{assignee.full_name}</span>
                         </div>
                       ) : null}
                     </div>

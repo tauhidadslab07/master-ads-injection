@@ -60,7 +60,7 @@ export interface Lead {
   
   // Attribution & Ownership
   original_hunter_id: string;
-  current_assignee_id: string;
+  current_assignee_id?: string;
   hunter?: TeamMember;
   assignee?: TeamMember;
   

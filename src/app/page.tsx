@@ -56,9 +56,13 @@ export default function HomePage() {
     return leads.filter(l => {
       if (l.is_dnc) return false;
 
+      // Only leads in active cadence or completed belong in Today's Work!
+      const isInCadence = l.stage === 'contacted' || l.stage === 'replied' || l.stage === 'all_done';
+      if (!isInCadence) return false;
+
       // Assignee Filter
       if (selectedAssigneeFilter === 'my') {
-        if (l.current_assignee_id && l.current_assignee_id !== currentUser.id) {
+        if (l.current_assignee_id !== currentUser.id) {
           return false;
         }
       } else if (selectedAssigneeFilter !== 'all') {
@@ -77,16 +81,16 @@ export default function HomePage() {
       }
 
       // Cadence Step Filter
-      if (activeQueueTab === 'initial') return l.cadence_step === 0;
-      if (activeQueueTab === 'fu1') return l.cadence_step === 1;
-      if (activeQueueTab === 'fu2') return l.cadence_step === 2;
-      if (activeQueueTab === 'fu3') return l.cadence_step === 3;
-      if (activeQueueTab === 'fu4') return l.cadence_step === 4;
-      if (activeQueueTab === 'fu5') return l.cadence_step === 5;
+      if (activeQueueTab === 'initial') return l.cadence_step === 0 && l.stage !== 'all_done';
+      if (activeQueueTab === 'fu1') return l.cadence_step === 1 && l.stage !== 'all_done';
+      if (activeQueueTab === 'fu2') return l.cadence_step === 2 && l.stage !== 'all_done';
+      if (activeQueueTab === 'fu3') return l.cadence_step === 3 && l.stage !== 'all_done';
+      if (activeQueueTab === 'fu4') return l.cadence_step === 4 && l.stage !== 'all_done';
+      if (activeQueueTab === 'fu5') return l.cadence_step === 5 && l.stage !== 'all_done';
       if (activeQueueTab === 'all_done') return l.cadence_step >= 6 || l.stage === 'all_done';
 
-      // Default 'all_due': active leads requiring cadence outreach
-      return (l.stage === 'contacted' || l.stage === 'approved' || l.stage === 'audited') && l.cadence_step < 6;
+      // Default 'all_due': active leads requiring cadence outreach (steps 0 to 5)
+      return (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step < 6;
     });
   }, [leads, activeQueueTab, selectedAssigneeFilter, activePriority, currentUser]);
 
@@ -308,7 +312,7 @@ export default function HomePage() {
           >
             <span>🎯 All Active Work</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-emerald-300 font-mono">
-              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'approved' || l.stage === 'audited') && l.cadence_step < 6 && !l.is_dnc).length}
+              {queueLeads.length}
             </span>
           </button>
 
@@ -322,7 +326,7 @@ export default function HomePage() {
           >
             <span>🚀 1st Message</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
-              {leads.filter(l => l.cadence_step === 0 && !l.is_dnc).length}
+              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step === 0 && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
             </span>
           </button>
 
@@ -336,7 +340,7 @@ export default function HomePage() {
           >
             <span>🔁 1st Follow-up</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
-              {leads.filter(l => l.cadence_step === 1 && !l.is_dnc).length}
+              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step === 1 && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
             </span>
           </button>
 
@@ -350,7 +354,7 @@ export default function HomePage() {
           >
             <span>🔁 2nd Follow-up</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
-              {leads.filter(l => l.cadence_step === 2 && !l.is_dnc).length}
+              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step === 2 && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
             </span>
           </button>
 
@@ -364,7 +368,7 @@ export default function HomePage() {
           >
             <span>🔁 3rd Follow-up</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
-              {leads.filter(l => l.cadence_step === 3 && !l.is_dnc).length}
+              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step === 3 && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
             </span>
           </button>
 
@@ -378,7 +382,7 @@ export default function HomePage() {
           >
             <span>🔁 4th Follow-up</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
-              {leads.filter(l => l.cadence_step === 4 && !l.is_dnc).length}
+              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step === 4 && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
             </span>
           </button>
 
@@ -392,7 +396,7 @@ export default function HomePage() {
           >
             <span>🔁 5th Follow-up</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-slate-300 font-mono">
-              {leads.filter(l => l.cadence_step === 5 && !l.is_dnc).length}
+              {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step === 5 && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
             </span>
           </button>
 
@@ -406,7 +410,7 @@ export default function HomePage() {
           >
             <span>🎉 All Done</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950/80 text-purple-300 font-mono">
-              {leads.filter(l => (l.cadence_step >= 6 || l.stage === 'all_done') && !l.is_dnc).length}
+              {leads.filter(l => (l.cadence_step >= 6 || l.stage === 'all_done') && !l.is_dnc && (selectedAssigneeFilter === 'all' ? true : selectedAssigneeFilter === 'my' ? l.current_assignee_id === currentUser.id : l.current_assignee_id === selectedAssigneeFilter)).length}
             </span>
           </button>
         </div>
