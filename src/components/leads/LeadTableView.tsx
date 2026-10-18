@@ -263,10 +263,300 @@ export function LeadTableView({
     }
   };
 
+  // Dynamic Niche Badge
+  const getNicheBadge = (l: Lead) => {
+    const ln = (l.niche || '').toLowerCase();
+    const comp = (l.company_name || '').toLowerCase();
+    const web = (l.website || '').toLowerCase();
+
+    if (ln === 'dtc' || /athletic|nutrition|bio|wear|store|shop|apparel|beauty|fashion/i.test(comp) || /wear|shop|store|brand|bio|health/i.test(web)) {
+      return { label: '🛍️ E-Commerce DTC', bg: 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300' };
+    }
+    if (ln === 'saas' || /cloud|fintech|security|tech|software|vr|ai|systems|data/i.test(comp) || /cloud|io|net|tech|fin/i.test(web)) {
+      return { label: '💻 B2B SaaS', bg: 'bg-purple-950/80 border-purple-500/40 text-purple-300' };
+    }
+    return { label: '👔 High-Ticket Coaching', bg: 'bg-amber-950/80 border-amber-500/40 text-amber-300' };
+  };
+
   return (
-    <div className="w-full overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1017] shadow-2xl relative">
-      <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-        <table className="w-full text-left border-collapse min-w-[1020px]">
+    <div className="w-full space-y-4">
+      {/* 📱 Mobile Card View (Optimized for Phones & Touch Screens < md) */}
+      <div className="md:hidden space-y-3">
+        {leads.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl border border-slate-800 bg-slate-900/60 text-slate-400 text-xs">
+            No leads found matching your criteria.
+          </div>
+        ) : (
+          leads.map((lead) => {
+            const country = (lead.phone ? detectCountryFromPhone(lead.phone) : null) || COUNTRY_CODES[0];
+            const { timeString } = mounted 
+              ? getCountryLocalTime(country.code) 
+              : { timeString: '1:34 PM' };
+            const currentStep = lead.cadence_step ?? 0;
+            const buttonDetails = getButtonDetails(currentStep);
+            const stepPill = getStepPillLabel(currentStep);
+            const waPitchMessage = `Hi, regarding your brand ${lead.company_name}: We noticed your ads are scaling and prepared a creative inject tear-sheet. Open to a 2-min review?`;
+            const waUrl = lead.phone ? getWhatsAppUrl(lead.phone, waPitchMessage) : '#';
+            const displayCompany = lead.company_name || 'Brand Lead';
+            const phoneSuffix = lead.phone && lead.phone.length > 4 ? lead.phone.slice(-4) : '';
+            const isDuplicate = duplicateLeadIds?.has(lead.id);
+            const latestNote = latestNotesByLeadId.get(lead.id);
+            const assignee = teamMembers.find(m => m.id === lead.current_assignee_id);
+            const hasCallback = !!lead.scheduled_callback_date;
+            const nicheBadge = getNicheBadge(lead);
+
+            return (
+              <div
+                key={lead.id}
+                onClick={() => onOpenDetails(lead)}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-3 ${
+                  hasCallback 
+                    ? 'bg-gradient-to-r from-amber-950/40 via-slate-900/95 to-slate-900 border-amber-500/50 ring-1 ring-amber-500/30'
+                    : lead.is_dnc 
+                    ? 'bg-rose-950/20 border-rose-800/40' 
+                    : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                {/* Header: Company, Deal Value & Badges */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="font-bold text-white text-sm">
+                      {displayCompany} {phoneSuffix ? <span className="font-mono text-xs text-slate-400 font-semibold">(+{country.dial_code.replace('+', '')} {phoneSuffix})</span> : null}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${nicheBadge.bg}`}>
+                        {nicheBadge.label}
+                      </span>
+                      {isDuplicate && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 border border-amber-500 text-amber-300">
+                          ⚠️ Duplicate
+                        </span>
+                      )}
+                      <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/60 border border-emerald-500/40 px-2 py-0.5 rounded-full font-mono">
+                        {country.code} • {timeString}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-xs font-bold text-emerald-400 block">
+                      ${lead.deal_value?.toLocaleString() || '1,500'}/mo
+                    </span>
+                    {assignee ? (
+                      <span className="text-[10px] text-cyan-300 font-semibold flex items-center justify-end space-x-1 mt-0.5">
+                        <UserCheck className="w-3 h-3 text-cyan-400" />
+                        <span className="truncate max-w-[90px]">{assignee.full_name}</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 italic">Unassigned</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scheduled Callback Banner */}
+                {lead.scheduled_callback_date && (
+                  <div 
+                    onClick={(e) => handleOpenCallbackModal(e, lead)}
+                    className="flex items-center space-x-1.5 text-[11px] text-amber-300 bg-amber-950/80 border border-amber-500/80 px-2.5 py-1.5 rounded-xl shadow-md font-bold"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0 animate-pulse" />
+                    <span>🌟 Callback: {lead.scheduled_callback_date}</span>
+                    {lead.scheduled_callback_reason && (
+                      <span className="text-amber-200/80 font-normal truncate max-w-[140px]">
+                        • {lead.scheduled_callback_reason}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Latest Activity Note */}
+                {latestNote && (
+                  <div 
+                    className="flex items-center space-x-1 text-[11px] text-amber-300/90 bg-amber-950/40 border border-amber-500/30 px-2.5 py-1 rounded-xl truncate"
+                  >
+                    <FileText className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span className="truncate">
+                      <strong className="text-amber-200">Note:</strong> {latestNote.replace(/^📝\s*(Stage Note \(Step \d\):|Initial Context Note:)?\s*/, '')}
+                    </span>
+                  </div>
+                )}
+
+                {/* Primary Contact Button: WhatsApp Click-to-Chat */}
+                {lead.phone ? (
+                  <a
+                    href={waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      soundEngine.playMentionChime();
+                    }}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-[#081813] border border-emerald-500/40 hover:border-emerald-400 text-xs font-mono font-bold text-emerald-300 shadow-sm active:scale-98 transition-all"
+                  >
+                    <span className="flex items-center space-x-2">
+                      <MessageSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="tracking-wide">+{country.dial_code.replace('+', '')} {lead.phone}</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-400 uppercase font-sans font-extrabold flex items-center space-x-1">
+                      <span>Chat WhatsApp</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </span>
+                  </a>
+                ) : (
+                  <a
+                    href={`mailto:${lead.email}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-[#091522] border border-cyan-500/40 text-xs text-cyan-300 font-mono font-bold"
+                  >
+                    <span className="flex items-center space-x-2">
+                      <Mail className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <span className="truncate max-w-[200px]">{lead.email}</span>
+                    </span>
+                    <span className="text-[10px] text-cyan-400 uppercase font-sans font-extrabold">Send Mail →</span>
+                  </a>
+                )}
+
+                {/* Cadence Step Action Button */}
+                {lead.stage === 'lead_added' ? (
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        passAudit(lead.id);
+                      }}
+                      className="py-2.5 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-md active:scale-95 transition-all text-center"
+                    >
+                      ✓ Pass Audit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        sendToAudit(lead.id);
+                      }}
+                      className="py-2.5 rounded-xl text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold border border-slate-700 active:scale-95 transition-all text-center"
+                    >
+                      Send to Audit
+                    </button>
+                  </div>
+                ) : lead.stage === 'audit' || lead.stage === 'pending_approval' ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      passAudit(lead.id);
+                    }}
+                    className="w-full py-2.5 rounded-xl text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow-md shadow-emerald-600/30 active:scale-95 transition-all text-center"
+                  >
+                    ✅ Approve & Complete Audit
+                  </button>
+                ) : (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 font-semibold">{stepPill}</span>
+                      {buttonDetails.isDone && <span className="text-emerald-400 font-bold">Completed</span>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => handleAdvanceClick(e, lead)}
+                      disabled={buttonDetails.isDone}
+                      className={`w-full py-2.5 px-3 rounded-xl text-xs transition-all active:scale-95 text-center flex items-center justify-center space-x-2 ${buttonDetails.bg}`}
+                    >
+                      <span>{buttonDetails.label}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Status Dropdown & Action Icon Bar */}
+                <div className="pt-2 flex items-center justify-between border-t border-slate-800/80 gap-2">
+                  {/* Status Dropdown */}
+                  <div className="relative">
+                    <select
+                      value={lead.last_client_reaction || 'unseen'}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => handleReactionChange(e, lead.id)}
+                      className={`px-2.5 py-1.5 pr-7 rounded-xl bg-slate-950 border text-[11px] font-bold appearance-none cursor-pointer focus:outline-none ${
+                        lead.last_client_reaction === 'unseen' && currentStep >= 1
+                          ? 'border-amber-500/80 text-amber-300 ring-1 ring-amber-500/40 bg-amber-950/40'
+                          : 'border-slate-700 text-slate-200'
+                      }`}
+                    >
+                      <option value="unseen">⏳ Unseen</option>
+                      <option value="seen">👀 Seen</option>
+                      <option value="replied">💬 Replied</option>
+                      <option value="interested">🔥 Interested</option>
+                      <option value="not_interested">❌ Not Interested</option>
+                      <option value="objection">⚠️ Objection</option>
+                    </select>
+                    <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
+                  {/* Quick Action Buttons */}
+                  <div className="flex items-center space-x-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTimelineModalLead(lead);
+                        setTimelineQuickNote('');
+                      }}
+                      title="Timeline & Cadence History"
+                      className="p-2 rounded-xl bg-purple-500/15 border border-purple-500/40 text-purple-300 active:scale-95"
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleOpenCallbackModal(e, lead)}
+                      title="Schedule Callback"
+                      className={`p-2 rounded-xl border active:scale-95 ${
+                        lead.scheduled_callback_date 
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300' 
+                          : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+                      }`}
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNoteModalLead(lead);
+                        setQuickNoteText('');
+                      }}
+                      title="Add Note"
+                      className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 active:scale-95"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleDnc(e, lead)}
+                      title="DNC"
+                      className={`p-2 rounded-xl border active:scale-95 ${
+                        lead.is_dnc 
+                          ? 'bg-rose-500/20 border-rose-500 text-rose-300' 
+                          : 'bg-slate-800 border-slate-700 text-slate-400'
+                      }`}
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* 🖥️ Desktop / Tablet Full Table (md+) */}
+      <div className="hidden md:block w-full overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1017] shadow-2xl relative">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+          <table className="w-full text-left border-collapse min-w-[1020px]">
           {/* Table Header */}
           <thead>
             <tr className="border-b border-slate-800/90 bg-slate-950/80 text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
@@ -717,6 +1007,7 @@ export function LeadTableView({
           </tbody>
         </table>
       </div>
+    </div>
 
       {/* MANDATORY STATUS UPDATE WARNING MODAL */}
       {statusModalLead && (

@@ -167,10 +167,10 @@ export function LeadDetailsDrawer() {
       onClick={() => setIsLeadDrawerOpen(false)}
     >
       <div 
-        className="absolute inset-y-0 right-0 max-w-full flex pl-10"
+        className="absolute inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10 w-full sm:w-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="w-screen max-w-xl bg-slate-900 border-l border-slate-700/80 shadow-2xl flex flex-col h-full">
+        <div className="w-full sm:w-screen sm:max-w-xl bg-slate-900 border-l border-slate-700/80 shadow-2xl flex flex-col h-full">
           
           {/* Header */}
           <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex items-center justify-between">

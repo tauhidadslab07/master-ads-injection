@@ -23,7 +23,8 @@ import {
   Lock,
   ArrowLeft,
   KeyRound,
-  ShieldCheck
+  ShieldCheck,
+  Menu
 } from 'lucide-react';
 
 interface TopHeaderProps {
@@ -32,6 +33,7 @@ interface TopHeaderProps {
   onOpenTeamModal: () => void;
   onOpenDuplicateModal: () => void;
   onOpenNichesModal?: () => void;
+  onOpenMobileDrawer?: () => void;
 }
 
 export function TopHeader({
@@ -39,7 +41,8 @@ export function TopHeader({
   onOpenBatchModal,
   onOpenTeamModal,
   onOpenDuplicateModal,
-  onOpenNichesModal
+  onOpenNichesModal,
+  onOpenMobileDrawer
 }: TopHeaderProps) {
   const { 
     currentUser, 
@@ -77,10 +80,15 @@ export function TopHeader({
       
       {/* Left: Mobile Brand + Search Input */}
       <div className="flex items-center space-x-3 flex-1 max-w-xs sm:max-w-md">
-        {/* Mobile brand mark */}
-        <div className="lg:hidden w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-          <Zap className="w-4 h-4 fill-emerald-400 stroke-emerald-950" />
-        </div>
+        {/* Mobile Hamburger Drawer Trigger */}
+        <button
+          type="button"
+          onClick={onOpenMobileDrawer}
+          className="lg:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 transition-colors shrink-0"
+          title="Open Navigation Menu"
+        >
+          <Menu className="w-4 h-4 text-emerald-400" />
+        </button>
 
         {/* Global Search */}
         <div className="relative w-full">
@@ -206,7 +214,7 @@ export function TopHeader({
         {/* Profile & Role-Restricted Switcher Dropdown */}
         <div className="relative group">
           <div className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-slate-900 cursor-pointer transition-colors">
-            <div className="text-right leading-tight">
+            <div className="hidden sm:block text-right leading-tight">
               <span className="font-bold text-white text-xs block flex items-center justify-end space-x-1">
                 <span>{currentUser.full_name}</span>
                 {currentUser.role === 'team_leader' && <span className="text-amber-400 text-[10px]">👑</span>}

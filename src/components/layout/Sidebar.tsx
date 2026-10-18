@@ -20,16 +20,25 @@ import {
   KeyRound,
   ArrowLeft,
   Crown,
-  Lock
+  Lock,
+  X
 } from 'lucide-react';
 
 interface SidebarProps {
   onOpenTeamModal: () => void;
   onOpenBatchModal: () => void;
   onOpenNichesModal?: () => void;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
-export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }: SidebarProps) {
+export function Sidebar({ 
+  onOpenTeamModal, 
+  onOpenBatchModal, 
+  onOpenNichesModal,
+  isMobileOpen = false,
+  onMobileClose
+}: SidebarProps) {
   const pathname = usePathname();
   const { 
     leads, 
@@ -56,22 +65,51 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
   const duplicateCount = retroactiveDuplicates.length;
 
   return (
-    <aside className="hidden lg:flex w-64 bg-slate-950 border-r border-slate-800/80 flex-col shrink-0 min-h-screen text-xs select-none">
-      
-      {/* Brand Header */}
-      <div className="h-16 flex items-center px-5 space-x-3 border-b border-slate-850">
-        <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-md shadow-emerald-950/40">
-          <Zap className="w-5 h-5 fill-emerald-400 stroke-emerald-950" />
+    <>
+      {/* Mobile Backdrop */}
+      {isMobileOpen && (
+        <div 
+          onClick={onMobileClose}
+          className="lg:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+        />
+      )}
+
+      {/* Main Sidebar (Desktop Sticky + Mobile Slide-out Drawer) */}
+      <aside className={`
+        ${isMobileOpen 
+          ? 'fixed inset-y-0 left-0 z-50 w-72 flex animate-in slide-in-from-left duration-200' 
+          : 'hidden lg:flex w-64'
+        }
+        bg-slate-950 border-r border-slate-800/80 flex-col shrink-0 min-h-screen text-xs select-none shadow-2xl lg:shadow-none
+      `}>
+        
+        {/* Brand Header */}
+        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-850">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-md shadow-emerald-950/40">
+              <Zap className="w-5 h-5 fill-emerald-400 stroke-emerald-950" />
+            </div>
+            <div>
+              <span className="font-black text-sm tracking-wide text-white block leading-tight">
+                MASTER ADS
+              </span>
+              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest block">
+                INJECTION ENGINE
+              </span>
+            </div>
+          </div>
+
+          {/* Close button on mobile */}
+          {isMobileOpen && (
+            <button
+              type="button"
+              onClick={onMobileClose}
+              className="lg:hidden p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
-        <div>
-          <span className="font-black text-sm tracking-wide text-white block leading-tight">
-            MASTER ADS
-          </span>
-          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest block">
-            INJECTION ENGINE
-          </span>
-        </div>
-      </div>
 
       {/* Nav List */}
       <div className="flex-1 py-4 px-3 space-y-6 overflow-y-auto">
@@ -85,6 +123,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
           {/* Today's Work */}
           <Link
             href="/"
+            onClick={onMobileClose}
             className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
               pathname === '/'
                 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 shadow-md shadow-emerald-950/50'
@@ -122,6 +161,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
               {/* 1. Lead Store */}
               <Link
                 href="/lead-store"
+                onClick={onMobileClose}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all ${
                   pathname === '/lead-store'
                     ? 'bg-cyan-950/90 text-cyan-300 border border-cyan-500/60 shadow-md shadow-cyan-950/50 font-bold'
@@ -142,6 +182,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
               {/* 2. Audited Lead */}
               <Link
                 href="/audited-leads"
+                onClick={onMobileClose}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all ${
                   pathname === '/audited-leads'
                     ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 shadow-md shadow-emerald-950/50 font-bold'
@@ -164,6 +205,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
           {/* Leads Outreach Pool */}
           <Link
             href="/outreach-pool"
+            onClick={onMobileClose}
             className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
               pathname === '/outreach-pool'
                 ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-700/60 shadow-md shadow-cyan-950/50'
@@ -187,6 +229,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
           {/* Leads Pipeline */}
           <Link
             href="/sales-pipeline"
+            onClick={onMobileClose}
             className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-semibold transition-all ${
               pathname === '/sales-pipeline'
                 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60 shadow-md shadow-emerald-950/50'
@@ -210,7 +253,11 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
           {/* Niches / Categories Button */}
           <button
             type="button"
-            onClick={onOpenNichesModal || (() => setIsNichesModalOpen(true))}
+            onClick={() => {
+              if (onOpenNichesModal) onOpenNichesModal();
+              else setIsNichesModalOpen(true);
+              onMobileClose?.();
+            }}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all active:scale-98 ${
               selectedNiche !== 'all'
                 ? 'bg-emerald-950/70 border border-emerald-500/50 text-emerald-300 font-bold'
@@ -230,6 +277,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
           {/* Intelligent Ad Audits */}
           <button
             type="button"
+            onClick={onMobileClose}
             className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900/80 transition-colors"
           >
             <div className="flex items-center space-x-2.5">
@@ -255,6 +303,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
               {/* 1. Individual Performance */}
               <Link
                 href="/performance/individual"
+                onClick={onMobileClose}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all ${
                   pathname === '/performance/individual'
                     ? 'bg-purple-950/90 text-purple-300 border border-purple-500/60 shadow-md shadow-purple-950/50 font-bold'
@@ -275,6 +324,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
               {/* 2. Team Performance */}
               <Link
                 href="/performance/team"
+                onClick={onMobileClose}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all ${
                   pathname === '/performance/team'
                     ? 'bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 shadow-md shadow-emerald-950/50 font-bold'
@@ -303,6 +353,7 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
               </p>
               <Link
                 href="/leader-tasks"
+                onClick={onMobileClose}
                 className={`flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-all ${
                   pathname === '/leader-tasks'
                     ? 'bg-amber-950/90 text-amber-300 border border-amber-500/70 shadow-lg shadow-amber-950/60 font-black'
@@ -331,7 +382,10 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
           {/* Cadence Scripts */}
           <button
             type="button"
-            onClick={onOpenBatchModal}
+            onClick={() => {
+              onOpenBatchModal?.();
+              onMobileClose?.();
+            }}
             className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900/80 transition-colors"
           >
             <FileText className="w-4 h-4 text-cyan-400" />
@@ -350,7 +404,10 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
           {/* Team & Access */}
           <button
             type="button"
-            onClick={onOpenTeamModal}
+            onClick={() => {
+              onOpenTeamModal?.();
+              onMobileClose?.();
+            }}
             className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900/80 transition-colors"
           >
             <div className="flex items-center space-x-2.5">
@@ -388,7 +445,10 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
         {/* Team Leader Inspection Exit Button if active */}
         {leaderSession && currentUser.id !== leaderSession.id && (
           <button
-            onClick={exitInspection}
+            onClick={() => {
+              exitInspection();
+              onMobileClose?.();
+            }}
             className="w-full py-1.5 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-bold text-[10px] flex items-center justify-center space-x-1 transition-all"
           >
             <ArrowLeft className="w-3 h-3 stroke-[3]" />
@@ -398,7 +458,10 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
 
         {/* Login / Switch Account Button */}
         <button
-          onClick={() => setIsLoginModalOpen(true)}
+          onClick={() => {
+            setIsLoginModalOpen(true);
+            onMobileClose?.();
+          }}
           className="w-full py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white font-bold text-[10px] flex items-center justify-center space-x-1.5 transition-colors"
         >
           <KeyRound className="w-3 h-3 text-cyan-400" />
@@ -407,5 +470,6 @@ export function Sidebar({ onOpenTeamModal, onOpenBatchModal, onOpenNichesModal }
       </div>
 
     </aside>
+    </>
   );
 }

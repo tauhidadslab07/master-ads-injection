@@ -4,22 +4,22 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useApp } from '@/lib/context/app-context';
-import { Zap, Layers, Plus, Users, Target } from 'lucide-react';
+import { Zap, Layers, Plus, Target, Menu } from 'lucide-react';
 
 interface MobileNavProps {
   onOpenCreateModal: () => void;
   onOpenTeamModal: () => void;
+  onOpenMobileDrawer?: () => void;
 }
 
-export function MobileNav({ onOpenCreateModal, onOpenTeamModal }: MobileNavProps) {
+export function MobileNav({ onOpenCreateModal, onOpenMobileDrawer }: MobileNavProps) {
   const pathname = usePathname();
-  const { setIsFocusModeOpen } = useApp();
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 border-t border-slate-800/90 backdrop-blur-lg px-2 py-2 safe-area-pb">
       <div className="flex items-center justify-around">
         
-        {/* Today's Work */}
+        {/* 1. Today's Work */}
         <Link
           href="/"
           className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[10px] font-medium transition-colors ${
@@ -30,7 +30,7 @@ export function MobileNav({ onOpenCreateModal, onOpenTeamModal }: MobileNavProps
           <span>Work</span>
         </Link>
 
-        {/* 1. Lead Store */}
+        {/* 2. Lead Store */}
         <Link
           href="/lead-store"
           className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[10px] font-medium transition-colors ${
@@ -41,7 +41,7 @@ export function MobileNav({ onOpenCreateModal, onOpenTeamModal }: MobileNavProps
           <span>Store</span>
         </Link>
 
-        {/* Floating Center Action Button (+ New Lead) */}
+        {/* 3. Floating Center Action Button (+ New Lead) */}
         <button
           onClick={onOpenCreateModal}
           className="flex flex-col items-center justify-center -mt-5"
@@ -53,7 +53,7 @@ export function MobileNav({ onOpenCreateModal, onOpenTeamModal }: MobileNavProps
           <span className="text-[10px] font-bold text-cyan-300 mt-1">Add</span>
         </button>
 
-        {/* 2. Audited Lead */}
+        {/* 4. Audited Leads */}
         <Link
           href="/audited-leads"
           className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[10px] font-medium transition-colors ${
@@ -64,13 +64,14 @@ export function MobileNav({ onOpenCreateModal, onOpenTeamModal }: MobileNavProps
           <span>Audited</span>
         </Link>
 
-        {/* Focus Mode */}
+        {/* 5. Mobile Drawer Menu Trigger */}
         <button
-          onClick={() => setIsFocusModeOpen(true)}
+          onClick={onOpenMobileDrawer}
           className="flex flex-col items-center justify-center p-1.5 rounded-lg text-[10px] font-medium text-slate-400 hover:text-cyan-400 transition-colors"
+          aria-label="Open Navigation Menu"
         >
-          <Users className="w-5 h-5 mb-0.5" />
-          <span>Focus</span>
+          <Menu className="w-5 h-5 mb-0.5" />
+          <span>Menu</span>
         </button>
 
       </div>

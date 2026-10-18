@@ -31,12 +31,15 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   } = useApp();
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   return (
     <div className="min-h-screen flex bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500 selection:text-slate-950">
       
-      {/* Left Sidebar (Matching Nexus CRM) */}
+      {/* Left Sidebar (Matching Nexus CRM & Responsive Mobile Drawer) */}
       <Sidebar
+        isMobileOpen={isMobileDrawerOpen}
+        onMobileClose={() => setIsMobileDrawerOpen(false)}
         onOpenTeamModal={() => setIsTeamModalOpen(true)}
         onOpenBatchModal={() => setIsBatchModalOpen(true)}
         onOpenNichesModal={() => setIsNichesModalOpen(true)}
@@ -45,8 +48,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       {/* Main Right Content Column */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         
-        {/* Top Header Bar with Search & Action Pills */}
+        {/* Top Header Bar with Mobile Drawer Trigger, Search & Action Pills */}
         <TopHeader
+          onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
           onOpenCreateModal={() => setIsCreateModalOpen(true)}
           onOpenBatchModal={() => setIsBatchModalOpen(true)}
           onOpenTeamModal={() => setIsTeamModalOpen(true)}
@@ -68,6 +72,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
 
         {/* Mobile Bottom Navigation */}
         <MobileNav
+          onOpenMobileDrawer={() => setIsMobileDrawerOpen(true)}
           onOpenCreateModal={() => setIsCreateModalOpen(true)}
           onOpenTeamModal={() => setIsTeamModalOpen(true)}
         />
