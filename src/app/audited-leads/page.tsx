@@ -26,7 +26,8 @@ import {
   ShieldCheck,
   Check,
   ChevronRight,
-  Database
+  Database,
+  Lock
 } from 'lucide-react';
 import { AssignMemberModal } from '@/components/leads/AssignMemberModal';
 
@@ -43,6 +44,8 @@ export default function AuditedLeadsPage() {
     addActivityNote,
     activities
   } = useApp();
+
+  const isTeamLeader = currentUser.role === 'team_leader';
 
   const [activeTab, setActiveTab] = useState<'under_audit' | 'ready_for_sales'>('under_audit');
   const [searchQuery, setSearchQuery] = useState('');
@@ -163,6 +166,11 @@ export default function AuditedLeadsPage() {
 
   // Action: Team Leader assigns Audited Lead to a Sales Member for Messaging
   const handleSingleAssignSales = (leadId: string, memberId: string) => {
+    if (!isTeamLeader) {
+      soundEngine.playWarningChime();
+      setToastMessage('🔒 শুধুমাত্র টিম লিডার সেলস টিমে লিড এসাইন করতে পারেন!');
+      return;
+    }
     if (!memberId) return;
     const member = teamMembers.find(m => m.id === memberId);
     const lead = leads.find(l => l.id === leadId);
@@ -174,6 +182,11 @@ export default function AuditedLeadsPage() {
 
   // Action: Team Leader bulk assigns Audited Leads to a Sales Member
   const handleBulkAssignSales = () => {
+    if (!isTeamLeader) {
+      soundEngine.playWarningChime();
+      setToastMessage('🔒 শুধুমাত্র টিম লিডার সেলস টিমে লিড এসাইন করতে পারেন!');
+      return;
+    }
     if (selectedLeadIds.size === 0 || !bulkSalesMemberId) return;
     const member = teamMembers.find(m => m.id === bulkSalesMemberId);
     const count = selectedLeadIds.size;
@@ -396,8 +409,12 @@ export default function AuditedLeadsPage() {
                 </p>
                 <p className="text-[11px] text-slate-300">
                   {activeTab === 'under_audit'
-                    ? 'অডিট সম্পন্ন মার্ক করুন অথবা অন্য কোনো মেম্বারকে অডিটর হিসেবে নির্ধারণ করুন।'
-                    : 'মেম্বারের নামের উপর ক্লিক করে সরাসরি WhatsApp বা Email মেসেজ পাঠানোর দায়িত্ব দিন।'}
+                    ? (isTeamLeader
+                        ? 'অডিট সম্পন্ন মার্ক করুন অথবা অন্য কোনো মেম্বারকে অডিটর হিসেবে নির্ধারণ করুন।'
+                        : 'অডিট যাচাই শেষ হলে নিচের "এক ক্লিকে অডিট কমপ্লিট করুন" বাটনে ক্লিক করুন।')
+                    : (isTeamLeader
+                        ? 'মেম্বারের নামের উপর ক্লিক করে সরাসরি WhatsApp বা Email মেসেজ পাঠানোর দায়িত্ব দিন।'
+                        : '🔒 শুধুমাত্র টিম লিডার সেলস মেম্বারদের মাঝে লিড এসাইন করবেন।')}
                 </p>
               </div>
             </div>
@@ -405,7 +422,7 @@ export default function AuditedLeadsPage() {
             <div className="flex items-center space-x-2">
               {activeTab === 'under_audit' ? (
                 <>
-                  {/* Single-click Bulk Pass Audit */}
+                  {/* Single-click Bulk Pass Audit - AVAILABLE TO ALL */}
                   <button
                     type="button"
                     onClick={handleBulkPassAudit}
@@ -415,61 +432,73 @@ export default function AuditedLeadsPage() {
                     <span>✅ এক ক্লিকে অডিট কমপ্লিট করুন</span>
                   </button>
 
-                  {/* Modal Trigger for Audit */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAssignModalMode('audit');
-                      setIsAssignModalOpen(true);
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/50 font-bold text-xs flex items-center space-x-1.5 transition-all active:scale-95"
-                  >
-                    <Users className="w-4 h-4" />
-                    <span>👥 অডিটর নির্ধারণ কার্ড</span>
-                  </button>
+                  {/* Modal Trigger for Audit - LEADER ONLY */}
+                  {isTeamLeader && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssignModalMode('audit');
+                        setIsAssignModalOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/50 font-bold text-xs flex items-center space-x-1.5 transition-all active:scale-95"
+                    >
+                      <Users className="w-4 h-4" />
+                      <span>👥 অডিটর নির্ধারণ কার্ড</span>
+                    </button>
+                  )}
                 </>
               ) : (
+                /* Ready for Sales Tab: LEADER ONLY controls */
                 <>
-                  {/* Channel Toggle */}
-                  <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-700 text-xs font-bold space-x-1">
-                    <button
-                      type="button"
-                      onClick={() => setBulkChannel('whatsapp')}
-                      className={`px-3 py-1.5 rounded-lg flex items-center space-x-1 transition-all ${
-                        bulkChannel === 'whatsapp'
-                          ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>WhatsApp 💬</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBulkChannel('email')}
-                      className={`px-3 py-1.5 rounded-lg flex items-center space-x-1 transition-all ${
-                        bulkChannel === 'email'
-                          ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <Mail className="w-3.5 h-3.5" />
-                      <span>Email ✉️</span>
-                    </button>
-                  </div>
+                  {isTeamLeader ? (
+                    <>
+                      {/* Channel Toggle */}
+                      <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-700 text-xs font-bold space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => setBulkChannel('whatsapp')}
+                          className={`px-3 py-1.5 rounded-lg flex items-center space-x-1 transition-all ${
+                            bulkChannel === 'whatsapp'
+                              ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>WhatsApp 💬</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBulkChannel('email')}
+                          className={`px-3 py-1.5 rounded-lg flex items-center space-x-1 transition-all ${
+                            bulkChannel === 'email'
+                              ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>Email ✉️</span>
+                        </button>
+                      </div>
 
-                  {/* Modal Trigger for Sales */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAssignModalMode('sales');
-                      setIsAssignModalOpen(true);
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 flex items-center space-x-1.5 transition-all active:scale-95"
-                  >
-                    <Users className="w-4 h-4" />
-                    <span>👥 সব মেম্বার কার্ড ({teamMembers.length} জন)</span>
-                  </button>
+                      {/* Modal Trigger for Sales */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssignModalMode('sales');
+                          setIsAssignModalOpen(true);
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 flex items-center space-x-1.5 transition-all active:scale-95"
+                      >
+                        <Users className="w-4 h-4" />
+                        <span>👥 সব মেম্বার কার্ড ({teamMembers.length} জন)</span>
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex items-center space-x-2 text-xs text-emerald-300 font-bold bg-emerald-950/60 px-3 py-2 rounded-xl border border-emerald-500/40">
+                      <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>সেলস টিমে এসাইন করার ক্ষমতা শুধুমাত্র টিম লিডারের রয়েছে।</span>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -484,52 +513,61 @@ export default function AuditedLeadsPage() {
             </div>
           </div>
 
-          {/* Bottom row: Direct 1-Click Team Member Names Chips */}
-          <div className="pt-2.5 border-t border-slate-800 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-black shrink-0 mr-1 flex items-center space-x-1 text-slate-200">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>
-                {activeTab === 'under_audit'
-                  ? '🔄 অডিটর রি-এসাইন করতে মেম্বারের নামের উপর ক্লিক করুন:'
-                  : `👉 সেলস মেম্বার নির্বাচন করুন (${bulkChannel.toUpperCase()} মেসেজ):`}
-              </span>
-            </span>
-
-            {teamMembers.map(m => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  const count = selectedLeadIds.size;
-                  if (activeTab === 'under_audit') {
-                    bulkAssignAuditor(Array.from(selectedLeadIds), m.id);
-                    setToastMessage(`🔍 ${count}টি লিড সফলভাবে ${m.full_name}-কে অডিটের জন্য রি-এসাইন করা হয়েছে!`);
-                  } else {
-                    bulkAssignLead(Array.from(selectedLeadIds), m.id, bulkChannel);
-                    setToastMessage(`🚀 ${count}টি অডিটকৃত লিড সফলভাবে ${m.full_name}-কে ${bulkChannel.toUpperCase()} মেসেজ পাঠানোর জন্য হস্তান্তর করা হয়েছে!`);
-                  }
-                  setSelectedLeadIds(new Set());
-                  soundEngine.playSuccessChime();
-                }}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 group ${
-                  activeTab === 'under_audit'
-                    ? 'bg-slate-950 hover:bg-amber-500 text-slate-100 hover:text-slate-950 border-slate-700 hover:border-amber-400'
-                    : 'bg-slate-950 hover:bg-emerald-500 text-slate-100 hover:text-slate-950 border-slate-700 hover:border-emerald-400'
-                }`}
-                title={`${m.full_name} (${m.role}) কে সরাসরি এসাইন করুন`}
-              >
-                <span className="text-xs">{m.role === 'team_leader' ? '👑' : '👤'}</span>
-                <span className="font-extrabold">{m.full_name}</span>
-                <span className={`text-[10px] font-mono font-bold ${
-                  activeTab === 'under_audit'
-                    ? 'text-amber-400 group-hover:text-slate-950'
-                    : 'text-emerald-400 group-hover:text-slate-950'
-                }`}>
-                  ★{m.consecutive_approvals || 0}
+          {/* Bottom row: Direct 1-Click Team Member Names Chips (Leader Only) */}
+          {isTeamLeader ? (
+            <div className="pt-2.5 border-t border-slate-800 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-black shrink-0 mr-1 flex items-center space-x-1 text-slate-200">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>
+                  {activeTab === 'under_audit'
+                    ? '🔄 অডিটর রি-এসাইন করতে মেম্বারের নামের উপর ক্লিক করুন:'
+                    : `👉 সেলস মেম্বার নির্বাচন করুন (${bulkChannel.toUpperCase()} মেসেজ):`}
                 </span>
-              </button>
-            ))}
-          </div>
+              </span>
+
+              {teamMembers.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    const count = selectedLeadIds.size;
+                    if (activeTab === 'under_audit') {
+                      bulkAssignAuditor(Array.from(selectedLeadIds), m.id);
+                      setToastMessage(`🔍 ${count}টি লিড সফলভাবে ${m.full_name}-কে অডিটের জন্য রি-এসাইন করা হয়েছে!`);
+                    } else {
+                      bulkAssignLead(Array.from(selectedLeadIds), m.id, bulkChannel);
+                      setToastMessage(`🚀 ${count}টি অডিটকৃত লিড সফলভাবে ${m.full_name}-কে ${bulkChannel.toUpperCase()} মেসেজ পাঠানোর জন্য হস্তান্তর করা হয়েছে!`);
+                    }
+                    setSelectedLeadIds(new Set());
+                    soundEngine.playSuccessChime();
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 group ${
+                    activeTab === 'under_audit'
+                      ? 'bg-slate-950 hover:bg-amber-500 text-slate-100 hover:text-slate-950 border-slate-700 hover:border-amber-400'
+                      : 'bg-slate-950 hover:bg-emerald-500 text-slate-100 hover:text-slate-950 border-slate-700 hover:border-emerald-400'
+                  }`}
+                  title={`${m.full_name} (${m.role}) কে সরাসরি এসাইন করুন`}
+                >
+                  <span className="text-xs">{m.role === 'team_leader' ? '👑' : '👤'}</span>
+                  <span className="font-extrabold">{m.full_name}</span>
+                  <span className={`text-[10px] font-mono font-bold ${
+                    activeTab === 'under_audit'
+                      ? 'text-amber-400 group-hover:text-slate-950'
+                      : 'text-emerald-400 group-hover:text-slate-950'
+                  }`}>
+                    ★{m.consecutive_approvals || 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            activeTab === 'under_audit' && (
+              <div className="pt-2.5 border-t border-slate-800 flex items-center space-x-2 text-xs text-emerald-300 font-bold">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>মেম্বারদের জন্য অ্যাকশন: অডিট পর্যালোচনা সম্পন্ন হলে উপরের &quot;✅ এক ক্লিকে অডিট কমপ্লিট করুন&quot; বাটনে ক্লিক করুন।</span>
+              </div>
+            )
+          )}
 
         </div>
       )}
@@ -606,8 +644,14 @@ export default function AuditedLeadsPage() {
                 return (
                   <tr 
                     key={lead.id}
-                    className={`group hover:bg-slate-900/50 transition-colors cursor-pointer ${
-                      isSelected ? 'bg-emerald-950/30 ring-1 ring-emerald-500/40' : ''
+                    className={`group transition-all cursor-pointer ${
+                      activeTab === 'ready_for_sales'
+                        ? (isSelected 
+                            ? 'bg-emerald-950/60 ring-2 ring-emerald-400 border-l-4 border-l-emerald-400 shadow-md shadow-emerald-950/40' 
+                            : 'bg-emerald-950/20 hover:bg-emerald-950/40 border-l-4 border-l-emerald-500/80')
+                        : (isSelected 
+                            ? 'bg-amber-950/40 ring-2 ring-amber-400 border-l-4 border-l-amber-400' 
+                            : 'hover:bg-slate-900/50 border-l-4 border-l-transparent')
                     }`}
                     onClick={() => handleToggleSelect(lead.id)}
                   >
@@ -732,73 +776,86 @@ export default function AuditedLeadsPage() {
                               <span>Audit Complete</span>
                             </button>
 
-                            {/* Re-assign auditor modal button */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedLeadIds(new Set([lead.id]));
-                                setAssignModalMode('audit');
-                                setIsAssignModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all"
-                              title="অডিটর মেম্বার পরিবর্তন করুন"
-                            >
-                              <UserCheck className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Re-assign auditor modal button (Leader only) */}
+                            {isTeamLeader && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedLeadIds(new Set([lead.id]));
+                                  setAssignModalMode('audit');
+                                  setIsAssignModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-all"
+                                title="অডিটর মেম্বার পরিবর্তন করুন"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         ) : (
-                          /* TAB 2 ACTION: Team Leader assigns to a Sales Member for Messaging */
+                          /* TAB 2 ACTION: Ready for Sales - Team Leader assigns to a Sales Member */
                           <div className="flex items-center space-x-1.5">
-                            
-                            {/* Member Selection Modal Button */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedLeadIds(new Set([lead.id]));
-                                setAssignModalMode('sales');
-                                setIsAssignModalOpen(true);
-                              }}
-                              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/50 hover:border-emerald-400 text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 active:scale-95"
-                              title="মেম্বারদের নাম ও কার্ড দেখে সেলস মেসেজিংয়ের জন্য এসাইন করুন"
-                            >
-                              <Users className="w-3.5 h-3.5" />
-                              <span>মেম্বার নির্বাচন</span>
-                            </button>
+                            {isTeamLeader ? (
+                              <>
+                                {/* Member Selection Modal Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedLeadIds(new Set([lead.id]));
+                                    setAssignModalMode('sales');
+                                    setIsAssignModalOpen(true);
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 border border-emerald-500/50 hover:border-emerald-400 text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 active:scale-95"
+                                  title="মেম্বারদের নাম ও কার্ড দেখে সেলস মেসেজিংয়ের জন্য এসাইন করুন"
+                                >
+                                  <Users className="w-3.5 h-3.5" />
+                                  <span>মেম্বার নির্বাচন</span>
+                                </button>
 
-                            {/* Channel Toggle */}
-                            <select
-                              value={selectedRowChannel}
-                              onChange={(e) => {
-                                setRowSalesChannels(prev => ({
-                                  ...prev,
-                                  [lead.id]: e.target.value as OutreachChannel
-                                }));
-                              }}
-                              className="px-2 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 text-[11px] font-bold focus:outline-none"
-                            >
-                              <option value="whatsapp">WA 💬</option>
-                              <option value="email">Email ✉️</option>
-                            </select>
+                                {/* Channel Toggle */}
+                                <select
+                                  value={selectedRowChannel}
+                                  onChange={(e) => {
+                                    setRowSalesChannels(prev => ({
+                                      ...prev,
+                                      [lead.id]: e.target.value as OutreachChannel
+                                    }));
+                                  }}
+                                  className="px-2 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 text-[11px] font-bold focus:outline-none"
+                                >
+                                  <option value="whatsapp">WA 💬</option>
+                                  <option value="email">Email ✉️</option>
+                                </select>
 
-                            {/* Member Dropdown */}
-                            <select
-                              defaultValue=""
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  handleSingleAssignSales(lead.id, e.target.value);
-                                  e.target.value = '';
-                                }
-                              }}
-                              className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-400 text-[11px] font-bold text-slate-300 hover:text-emerald-300 focus:outline-none cursor-pointer transition-all"
-                              title="মেসেজ পাঠানোর জন্য সেলস মেম্বার নির্বাচন করুন"
-                            >
-                              <option value="" disabled>👤 ড্রপডাউন...</option>
-                              {teamMembers.map(m => (
-                                <option key={m.id} value={m.id}>
-                                  {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Member'})
-                                </option>
-                              ))}
-                            </select>
+                                {/* Member Dropdown */}
+                                <select
+                                  defaultValue=""
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleSingleAssignSales(lead.id, e.target.value);
+                                      e.target.value = '';
+                                    }
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-emerald-400 text-[11px] font-bold text-slate-300 hover:text-emerald-300 focus:outline-none cursor-pointer transition-all"
+                                  title="মেসেজ পাঠানোর জন্য সেলস মেম্বার নির্বাচন করুন"
+                                >
+                                  <option value="" disabled>👤 ড্রপডাউন...</option>
+                                  {teamMembers.map(m => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Member'})
+                                    </option>
+                                  ))}
+                                </select>
+                              </>
+                            ) : (
+                              <span 
+                                className="px-3 py-1.5 rounded-xl bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 text-[11px] font-bold inline-flex items-center space-x-1.5"
+                                title="অডিট সম্পন্ন হয়েছে। শুধুমাত্র টিম লিডার সেলস টিমে এসাইন করবেন।"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>অডিট সম্পন্ন (টিম লিডার সেলস টিমে এসাইন করবেন)</span>
+                              </span>
+                            )}
                           </div>
                         )}
 

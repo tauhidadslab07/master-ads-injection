@@ -27,7 +27,8 @@ import {
   Send,
   Sparkles,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 import { AssignMemberModal } from '@/components/leads/AssignMemberModal';
 
@@ -45,6 +46,8 @@ export default function LeadStorePage() {
     setSelectedLead,
     setIsLeadDrawerOpen
   } = useApp();
+
+  const isTeamLeader = currentUser.role === 'team_leader';
 
   const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'email'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +135,11 @@ export default function LeadStorePage() {
 
   // Single Assign for Audit: Immediately moves lead to Audited Lead section!
   const handleSingleAssignAuditor = (leadId: string, auditorId: string) => {
+    if (!isTeamLeader) {
+      soundEngine.playWarningChime();
+      setToastMessage('🔒 শুধুমাত্র টিম লিডার অডিটের জন্য মেম্বার এসাইন করতে পারেন!');
+      return;
+    }
     if (!auditorId) return;
     const auditor = teamMembers.find(m => m.id === auditorId);
     const lead = leads.find(l => l.id === leadId);
@@ -142,6 +150,11 @@ export default function LeadStorePage() {
 
   // Bulk Assign for Audit: Immediately moves selected leads to Audited Lead section!
   const handleBulkAssignAuditor = () => {
+    if (!isTeamLeader) {
+      soundEngine.playWarningChime();
+      setToastMessage('🔒 শুধুমাত্র টিম লিডার অডিটের জন্য মেম্বার এসাইন করতে পারেন!');
+      return;
+    }
     if (selectedLeadIds.size === 0 || !bulkAuditorId) return;
     const auditor = teamMembers.find(m => m.id === bulkAuditorId);
     const count = selectedLeadIds.size;
@@ -351,21 +364,25 @@ export default function LeadStorePage() {
                   </span>
                 </p>
                 <p className="text-[11px] text-cyan-200">
-                  নিচের মেম্বারের নামের উপর ক্লিক করলেই সবগুলো লিড সাথে সাথে অডিটে চলে যাবে।
+                  {isTeamLeader 
+                    ? 'নিচের মেম্বারের নামের উপর ক্লিক করলেই সবগুলো লিড সাথে সাথে অডিটে চলে যাবে।'
+                    : '🔒 লিড অডিটের জন্য এসাইন করার ক্ষমতা শুধুমাত্র টিম লিডার (তৌহিদ)-এর রয়েছে। আপনি কেবল লিড দেখতে পারবেন।'}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center space-x-2">
-              {/* Modal trigger button */}
-              <button
-                type="button"
-                onClick={() => setIsAssignModalOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs shadow-md shadow-cyan-500/20 flex items-center space-x-1.5 transition-all active:scale-95"
-              >
-                <Users className="w-4 h-4" />
-                <span>👥 সব মেম্বার কার্ড ({teamMembers.length} জন)</span>
-              </button>
+              {/* Modal trigger button (Leader only) */}
+              {isTeamLeader && (
+                <button
+                  type="button"
+                  onClick={() => setIsAssignModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs shadow-md shadow-cyan-500/20 flex items-center space-x-1.5 transition-all active:scale-95"
+                >
+                  <Users className="w-4 h-4" />
+                  <span>👥 সব মেম্বার কার্ড ({teamMembers.length} জন)</span>
+                </button>
+              )}
 
               {/* Clear selection */}
               <button
@@ -378,34 +395,41 @@ export default function LeadStorePage() {
             </div>
           </div>
 
-          {/* Member Names Row: Direct 1-Click Assignment */}
-          <div className="pt-2.5 border-t border-cyan-800/60 flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-black text-amber-300 shrink-0 mr-1 flex items-center space-x-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>সরাসরি মেম্বার নির্বাচন করুন:</span>
-            </span>
-            {teamMembers.map(m => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => {
-                  const count = selectedLeadIds.size;
-                  bulkAssignAuditor(Array.from(selectedLeadIds), m.id);
-                  setToastMessage(`🔍 ${count}টি লিড সফলভাবে ${m.full_name}-কে অডিটের জন্য এসাইন করা হয়েছে এবং "2. Audited Lead" সেকশনে পাঠানো হয়েছে!`);
-                  setSelectedLeadIds(new Set());
-                  soundEngine.playSuccessChime();
-                }}
-                className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-amber-500 text-slate-100 hover:text-slate-950 border border-slate-700/80 hover:border-amber-400 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 group"
-                title={`${m.full_name} (${m.role}) কে এসাইন করতে ক্লিক করুন`}
-              >
-                <span className="text-xs">{m.role === 'team_leader' ? '👑' : '👤'}</span>
-                <span className="font-extrabold">{m.full_name}</span>
-                <span className="text-[10px] text-amber-400 group-hover:text-slate-950 font-mono font-bold">
-                  ★{m.consecutive_approvals || 0}
-                </span>
-              </button>
-            ))}
-          </div>
+          {/* Member Names Row: Direct 1-Click Assignment (Leader Only) */}
+          {isTeamLeader ? (
+            <div className="pt-2.5 border-t border-cyan-800/60 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-black text-amber-300 shrink-0 mr-1 flex items-center space-x-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>সরাসরি মেম্বার নির্বাচন করুন:</span>
+              </span>
+              {teamMembers.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    const count = selectedLeadIds.size;
+                    bulkAssignAuditor(Array.from(selectedLeadIds), m.id);
+                    setToastMessage(`🔍 ${count}টি লিড সফলভাবে ${m.full_name}-কে অডিটের জন্য এসাইন করা হয়েছে এবং "2. Audited Lead" সেকশনে পাঠানো হয়েছে!`);
+                    setSelectedLeadIds(new Set());
+                    soundEngine.playSuccessChime();
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-amber-500 text-slate-100 hover:text-slate-950 border border-slate-700/80 hover:border-amber-400 text-xs font-bold flex items-center space-x-1.5 transition-all shadow-sm active:scale-95 group"
+                  title={`${m.full_name} (${m.role}) কে এসাইন করতে ক্লিক করুন`}
+                >
+                  <span className="text-xs">{m.role === 'team_leader' ? '👑' : '👤'}</span>
+                  <span className="font-extrabold">{m.full_name}</span>
+                  <span className="text-[10px] text-amber-400 group-hover:text-slate-950 font-mono font-bold">
+                    ★{m.consecutive_approvals || 0}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="pt-2.5 border-t border-cyan-800/60 flex items-center space-x-2 text-xs text-amber-300 font-bold">
+              <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>লিড অডিটের জন্য মেম্বারদের নির্ধারণ করার ক্ষমতা শুধুমাত্র টিম লিডারের রয়েছে।</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -559,41 +583,53 @@ export default function LeadStorePage() {
                     <td className="py-4 px-5 align-middle text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end space-x-2">
                         
-                        {/* Member Assign Button (Opens Member Modal with all team member cards) */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedLeadIds(new Set([lead.id]));
-                            setIsAssignModalOpen(true);
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/50 hover:border-amber-400 text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 active:scale-95"
-                          title="মেম্বারদের নাম ও কার্ড দেখে অডিটের জন্য এসাইন করুন"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          <span>মেম্বার নির্বাচন</span>
-                        </button>
+                        {isTeamLeader ? (
+                          <>
+                            {/* Member Assign Button (Opens Member Modal with all team member cards) */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedLeadIds(new Set([lead.id]));
+                                setIsAssignModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/50 hover:border-amber-400 text-xs font-bold transition-all shadow-sm flex items-center space-x-1.5 active:scale-95"
+                              title="মেম্বারদের নাম ও কার্ড দেখে অডিটের জন্য এসাইন করুন"
+                            >
+                              <Users className="w-3.5 h-3.5" />
+                              <span>মেম্বার নির্বাচন</span>
+                            </button>
 
-                        {/* Member Select Dropdown as quick alternative */}
-                        <div className="relative">
-                          <select
-                            defaultValue=""
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleSingleAssignAuditor(lead.id, e.target.value);
-                                e.target.value = '';
-                              }
-                            }}
-                            className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-[11px] font-bold text-slate-300 hover:text-amber-300 focus:outline-none cursor-pointer transition-all"
-                            title="অডিট করার জন্য মেম্বার সিলেক্ট করুন"
+                            {/* Member Select Dropdown as quick alternative */}
+                            <div className="relative">
+                              <select
+                                defaultValue=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleSingleAssignAuditor(lead.id, e.target.value);
+                                    e.target.value = '';
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-400 text-[11px] font-bold text-slate-300 hover:text-amber-300 focus:outline-none cursor-pointer transition-all"
+                                title="অডিট করার জন্য মেম্বার সিলেক্ট করুন"
+                              >
+                                <option value="" disabled>👤 ড্রপডাউন...</option>
+                                {teamMembers.map(m => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </>
+                        ) : (
+                          <span 
+                            className="px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-500 text-[11px] font-bold inline-flex items-center space-x-1.5"
+                            title="শুধুমাত্র টিম লিডার অডিটের জন্য এসাইন করতে পারবেন"
                           >
-                            <option value="" disabled>👤 ড্রপডাউন...</option>
-                            {teamMembers.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.full_name} ({m.role === 'team_leader' ? 'Leader' : 'Specialist'})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                            <Lock className="w-3.5 h-3.5 text-slate-500" />
+                            <span>টিম লিডার এসাইন করবেন</span>
+                          </span>
+                        )}
 
                         {/* Clock button for timeline */}
                         <button

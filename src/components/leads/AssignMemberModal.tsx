@@ -15,7 +15,8 @@ import {
   UserCheck, 
   ArrowRight,
   ShieldCheck,
-  Flame
+  Flame,
+  Lock
 } from 'lucide-react';
 
 interface AssignMemberModalProps {
@@ -33,11 +34,42 @@ export function AssignMemberModal({
   mode,
   onSuccess
 }: AssignMemberModalProps) {
-  const { teamMembers, bulkAssignAuditor, bulkAssignLead, leads } = useApp();
+  const { currentUser, teamMembers, bulkAssignAuditor, bulkAssignLead, leads } = useApp();
   const [searchMember, setSearchMember] = useState('');
   const [selectedChannel, setSelectedChannel] = useState<OutreachChannel>('whatsapp');
 
   if (!isOpen || leadIds.length === 0) return null;
+
+  // Strict Leader-Only Guard
+  if (currentUser.role !== 'team_leader') {
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200"
+        onClick={onClose}
+      >
+        <div 
+          className="w-full max-w-md bg-slate-900 border border-amber-500/50 rounded-3xl shadow-2xl overflow-hidden p-6 text-center space-y-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white">🔒 শুধুমাত্র টিম লিডারের পারমিশন রয়েছে</h3>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              লিড স্টোর বা অডিটেড লিড থেকে কোনো মেম্বারকে অডিট বা সেলসের জন্য এসাইন করার ক্ষমতা শুধুমাত্র টিম লিডার (তৌহিদ)-এর রয়েছে।
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-colors"
+          >
+            বন্ধ করুন (Close)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Selected leads companies for quick visual confirmation
   const selectedLeads = leads.filter(l => leadIds.includes(l.id));

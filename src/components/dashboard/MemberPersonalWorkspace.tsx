@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { useApp } from '@/lib/context/app-context';
-import { Lead, TeamMember, ClientReaction, CADENCE_STEPS } from '@/types/crm';
+import { Lead, TeamMember, ClientReaction, CADENCE_STEPS, OutreachChannel } from '@/types/crm';
 import { getWhatsAppUrl } from '@/lib/phone-utils';
 import { soundEngine } from '@/lib/audio-chime';
 import { detectCountryFromPhone, getCountryLocalTime } from '@/lib/country-codes';
@@ -59,8 +60,18 @@ export function MemberPersonalWorkspace() {
     updateMemberLeaveSchedule,
     submitBatchToLeader,
     resubmitRejectedLead,
-    passAudit
+    passAudit,
+    assignLead
   } = useApp();
+
+  // Sales dispatch state for Team Leader
+  const [workspaceSalesChannels, setWorkspaceSalesChannels] = useState<Record<string, OutreachChannel>>({});
+  const [dispatchNotice, setDispatchNotice] = useState<string | null>(null);
+
+  // Audited leads waiting for Sales Dispatch (Team Leader view)
+  const readyForSalesLeads = useMemo(() => {
+    return leads.filter(l => l.stage === 'audited');
+  }, [leads]);
 
   // If leader, allow inspecting any member's personal workspace
   const [inspectedMemberId, setInspectedMemberId] = useState<string>(currentUser.id);
@@ -288,6 +299,18 @@ export function MemberPersonalWorkspace() {
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
 
       {/* TOP NOTIFICATIONS / BANNERS */}
+      {dispatchNotice && (
+        <div className="p-4 rounded-2xl bg-emerald-950/95 border-2 border-emerald-400 text-emerald-200 text-xs font-bold shadow-2xl flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center space-x-2.5">
+            <Sparkles className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span>{dispatchNotice}</span>
+          </div>
+          <button onClick={() => setDispatchNotice(null)} className="p-1 text-emerald-300 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {batchSubmittedNotice && (
         <div className="p-4 rounded-2xl bg-emerald-950/90 border-2 border-emerald-400 text-emerald-200 text-xs font-bold shadow-2xl flex items-center justify-between animate-in fade-in">
           <div className="flex items-center space-x-2.5">
@@ -415,6 +438,160 @@ export function MemberPersonalWorkspace() {
           </button>
         </div>
       </div>
+
+      {/* ========================================================================================= */}
+      {/* 🚀 LEADER DASHBOARD EXCLUSIVE: অডিট সম্পন্ন লিডসমূহ (সেলস টিমে পাঠানোর জন্য প্রস্তুত) */}
+      {/* Consistent Unified Emerald Green Color Scheme matching /audited-leads Ready for Sales */}
+      {/* ========================================================================================= */}
+      {currentUser.role === 'team_leader' && (
+        <div className="p-5 sm:p-6 rounded-3xl bg-emerald-950/25 border-2 border-emerald-500/60 shadow-2xl shadow-emerald-950/40 space-y-4 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-emerald-800/60 pb-3.5">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center text-emerald-300 shadow-md">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-white flex items-center space-x-2">
+                    <span>🚀 অডিট সম্পন্ন লিডসমূহ (Ready for Sales Dispatch)</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-500 text-slate-950 shadow-sm">
+                      {readyForSalesLeads.length} টি প্রস্তুত
+                    </span>
+                  </h2>
+                  <p className="text-xs text-emerald-200/80">
+                    অডিটর কর্তৃক অডিট সম্পন্ন হওয়া লিড। নিচের মেম্বার বাটনে ক্লিক করে সাথে সাথে WhatsApp বা Email মেসেজ পাঠানোর দায়িত্ব দিন।
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Link to full Audited Leads page */}
+            <Link
+              href="/audited-leads"
+              className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-emerald-900/70 hover:bg-emerald-800 border border-emerald-500/60 text-emerald-200 font-bold text-xs flex items-center space-x-1.5 transition-all group shadow-sm"
+            >
+              <span>2. Audited Leads View ({readyForSalesLeads.length})</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+
+          {/* Leads List or Empty State */}
+          {readyForSalesLeads.length === 0 ? (
+            <div className="p-6 text-center rounded-2xl bg-emerald-950/40 border border-emerald-900/60 space-y-1">
+              <p className="text-xs font-bold text-emerald-300">✓ কোনো পেন্ডিং অডিটেড লিড নেই</p>
+              <p className="text-[11px] text-slate-400">
+                অডিটর কোনো লিডের অডিট সম্পন্ন করলে সেলস টিমে পাঠানোর জন্য এখানে শো করবে।
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {readyForSalesLeads.map(lead => {
+                const country = (lead.phone ? detectCountryFromPhone(lead.phone) : null);
+                const { timeString, isBusinessHours } = country ? getCountryLocalTime(country.code) : { timeString: '1:34 PM', isBusinessHours: true };
+                const channel = workspaceSalesChannels[lead.id] || lead.channel || 'whatsapp';
+                const auditor = teamMembers.find(m => m.id === (lead.auditor_id || lead.current_assignee_id));
+                const approver = teamMembers.find(m => m.id === lead.approved_by);
+
+                return (
+                  <div 
+                    key={lead.id}
+                    className="p-4 rounded-2xl bg-emerald-950/30 hover:bg-emerald-950/50 border-l-4 border-l-emerald-500 border border-emerald-800/60 shadow-md flex flex-col lg:flex-row lg:items-center justify-between gap-4 transition-all"
+                  >
+                    {/* Left: Company & Meta */}
+                    <div className="space-y-1.5 min-w-[260px]">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-extrabold text-sm text-white">{lead.company_name}</span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-900/80 text-emerald-300 border border-emerald-600/60">
+                          ✓ Verified Audited
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+                        {lead.website && (
+                          <a 
+                            href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="text-[11px] text-slate-400 hover:text-emerald-300 inline-flex items-center space-x-1"
+                          >
+                            <span className="truncate max-w-[150px]">{lead.website.replace(/^https?:\/\//, '')}</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        )}
+                        {country && (
+                          <span className="text-[11px] text-slate-400 font-mono flex items-center space-x-1">
+                            <span>{country.flag} {country.name}</span>
+                            <span>•</span>
+                            <Clock className="w-3 h-3 text-emerald-400 inline" />
+                            <span>{timeString}</span>
+                            <span className={`w-1.5 h-1.5 rounded-full ${isBusinessHours ? 'bg-emerald-400' : 'bg-slate-600'}`} />
+                          </span>
+                        )}
+                        <span className="text-[11px] text-emerald-400/90 font-medium">
+                          Auditor: {approver?.full_name || auditor?.full_name || 'Verified'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right: Channel Switcher & 1-Click Member Dispatch Chips */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {/* Channel Switcher */}
+                      <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
+                        <button
+                          type="button"
+                          onClick={() => setWorkspaceSalesChannels(prev => ({ ...prev, [lead.id]: 'whatsapp' }))}
+                          className={`px-2.5 py-1 rounded-lg flex items-center space-x-1 transition-all ${
+                            channel === 'whatsapp'
+                              ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span>WA 💬</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWorkspaceSalesChannels(prev => ({ ...prev, [lead.id]: 'email' }))}
+                          className={`px-2.5 py-1 rounded-lg flex items-center space-x-1 transition-all ${
+                            channel === 'email'
+                              ? 'bg-cyan-500 text-slate-950 font-black shadow-sm'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Mail className="w-3 h-3" />
+                          <span>Email ✉️</span>
+                        </button>
+                      </div>
+
+                      {/* Member 1-Click Buttons */}
+                      <span className="text-[11px] font-bold text-slate-400 shrink-0">সেলস মেম্বার পাঠান:</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {teamMembers.map(m => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              assignLead(lead.id, m.id, channel);
+                              setDispatchNotice(`🚀 "${lead.company_name}" সফলভাবে ${m.full_name}-কে ${channel.toUpperCase()} মেসেজিংয়ের জন্য এসাইন করা হয়েছে!`);
+                              soundEngine.playSuccessChime();
+                              setTimeout(() => setDispatchNotice(null), 5000);
+                            }}
+                            className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-emerald-500 text-slate-200 hover:text-slate-950 border border-slate-700/80 hover:border-emerald-400 text-xs font-bold flex items-center space-x-1 transition-all shadow-sm active:scale-95 group"
+                            title={`${m.full_name} (${m.role}) কে সরাসরি এসাইন করতে ক্লিক করুন`}
+                          >
+                            <span className="text-[11px]">{m.role === 'team_leader' ? '👑' : '👤'}</span>
+                            <span className="font-extrabold">{m.full_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ========================================================================================= */}
       {/* ২. দৈনিক লক্ষ্যমাত্রা ও প্রগ্রেস বার (Daily Target & Progress Bar) */}

@@ -455,6 +455,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Send lead to Audit Stage (Team Leader assigns a member to audit)
   const sendToAudit = useCallback((leadId: string, auditorId?: string) => {
+    if (currentUser.role !== 'team_leader') {
+      soundEngine.playWarningChime();
+      return { success: false, message: '🔒 শুধুমাত্র টিম লিডার অডিটের জন্য লিড এসাইন করতে পারেন।' };
+    }
+
     const lead = hydratedLeads.find(l => l.id === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
@@ -534,6 +539,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Bulk Send Leads to Audit
   const bulkSendToAudit = useCallback((leadIds: string[], auditorId?: string) => {
+    if (currentUser.role !== 'team_leader') {
+      soundEngine.playWarningChime();
+      return { success: false, count: 0, message: '🔒 শুধুমাত্র টিম লিডার অডিটের জন্য লিড এসাইন করতে পারেন।' };
+    }
     if (!leadIds.length) return { success: false, count: 0 };
     const auditor = auditorId ? teamMembers.find(m => m.id === auditorId) : null;
 
@@ -595,6 +604,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Bulk Assign Audited Leads to a Sales Member (Supports Channel!)
   const bulkAssignLead = useCallback((leadIds: string[], assigneeId: string, channel?: OutreachChannel) => {
+    if (currentUser.role !== 'team_leader') {
+      soundEngine.playWarningChime();
+      return { success: false, count: 0, message: '🔒 শুধুমাত্র টিম লিডার সেলস টিমে লিড এসাইন করতে পারেন।' };
+    }
     if (!leadIds.length) return { success: false, count: 0 };
     const assignee = teamMembers.find(m => m.id === assigneeId);
     if (!assignee) return { success: false, count: 0 };
@@ -861,6 +874,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Assign Audited Lead to a Sales Member for WhatsApp/Email Outreach (Leader / Deputy)
   const assignLead = useCallback((leadId: string, assigneeId: string, channel?: OutreachChannel) => {
+    if (currentUser.role !== 'team_leader') {
+      soundEngine.playWarningChime();
+      return { success: false, message: '🔒 শুধুমাত্র টিম লিডার সেলস টিমে লিড এসাইন করতে পারেন।' };
+    }
+
     const lead = hydratedLeads.find(l => l.id === leadId);
     if (!lead) return { success: false, message: 'Lead not found.' };
 
