@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useApp } from '@/lib/context/app-context';
 import { LeadCard } from '@/components/leads/LeadCard';
 import { LeadTableView } from '@/components/leads/LeadTableView';
@@ -9,31 +10,24 @@ import {
   Zap, 
   MessageCircle, 
   Mail, 
-  ShieldAlert, 
-  Plus, 
-  UploadCloud, 
   Filter, 
-  Lock, 
   CheckCircle2, 
   Sparkles, 
   Search, 
-  RotateCcw, 
-  Clock, 
-  ArrowRight,
   LayoutGrid,
-  List
+  List,
+  Users,
+  Send,
+  Database,
+  ArrowRight,
+  UserCheck,
+  Check
 } from 'lucide-react';
-
-interface OutreachPoolPageProps {
-  onOpenCreateModal?: () => void;
-  onOpenBatchModal?: () => void;
-}
 
 export default function OutreachPoolPage() {
   const { 
     leads, 
     currentUser, 
-    setCurrentUser, 
     teamMembers, 
     channelFilter, 
     setChannelFilter, 
@@ -43,15 +37,16 @@ export default function OutreachPoolPage() {
     retroactiveDuplicates 
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'all' | 'raw_outreach' | 'audit' | 'audited' | 'cadence' | 'all_done' | 'cold' | 'recycle' | 'duplicates'>('all');
+  const isTeamLeader = currentUser.role === 'team_leader';
+
+  // Cadence Step Filter: 'all' | 0 (1st Msg) | 1 (FU1) | 2 (FU2) | 3 (FU3) | 4 (FU4) | 5 (FU5) | 6 (All Done)
+  const [cadenceFilter, setCadenceFilter] = useState<'all' | number>('all');
+  
+  // Member Filter (for Team Leader to inspect any member's work)
+  const [selectedMemberFilter, setSelectedMemberFilter] = useState<string>('all');
+
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-
-  // SECTION ISOLATION GUARD:
-  // Exclusively for Hunters and Outreach Specialists. Sales Closers cannot access unless Team Leader.
-  const isLeader = currentUser.role === 'team_leader';
-  const isHunterOrOutreach = currentUser.role === 'hunter' || currentUser.role === 'outreach_specialist';
-  const hasAccess = isLeader || isHunterOrOutreach;
 
   // Duplicate lead IDs from retroactive scanner
   const duplicateLeadIds = useMemo(() => {
@@ -63,120 +58,126 @@ export default function OutreachPoolPage() {
     return ids;
   }, [retroactiveDuplicates]);
 
-  // Channel live counts
-  const whatsappCount = useMemo(() => {
-    return leads.filter(l => l.channel === 'whatsapp').length;
-  }, [leads]);
-
-  const emailCount = useMemo(() => {
-    return leads.filter(l => l.channel === 'email').length;
-  }, [leads]);
-
-  // Filtered Leads
-  const filteredLeads = useMemo(() => {
+  // Base outreach pool leads:
+  // Non-leaders see ONLY leads assigned to them for outreach
+  // Team Leader sees all leads assigned for outreach across the entire team
+  const baseOutreachLeads = useMemo(() => {
     return leads.filter(l => {
+      // Must be an active cadence or completed outreach stage
+      const isOutreachStage = l.stage === 'contacted' || l.stage === 'replied' || l.stage === 'all_done';
+      if (!isOutreachStage) return false;
+
+      // Regular member only sees their assigned outreach leads
+      if (!isTeamLeader && l.current_assignee_id !== currentUser.id) {
+        return false;
+      }
+
+      // Team Leader member filter
+      if (isTeamLeader && selectedMemberFilter !== 'all' && l.current_assignee_id !== selectedMemberFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [leads, isTeamLeader, currentUser.id, selectedMemberFilter]);
+
+  // Filtered leads based on cadence step, channel, and search
+  const filteredLeads = useMemo(() => {
+    return baseOutreachLeads.filter(l => {
       // Channel filter
       if (channelFilter === 'whatsapp' && l.channel !== 'whatsapp') return false;
       if (channelFilter === 'email' && l.channel !== 'email') return false;
 
-      // Search
+      // Cadence Step filter
+      if (cadenceFilter !== 'all') {
+        if (cadenceFilter === 6) {
+          // All done
+          if (l.cadence_step < 6 && l.stage !== 'all_done') return false;
+        } else {
+          if (l.cadence_step !== cadenceFilter) return false;
+        }
+      }
+
+      // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
-        const matchesComp = l.company_name.toLowerCase().includes(query);
-        const matchesCont = l.contact_name.toLowerCase().includes(query);
-        const matchesPhone = l.phone.includes(query);
-        const matchesEmail = l.email.toLowerCase().includes(query);
+        const matchesComp = (l.company_name || '').toLowerCase().includes(query);
+        const matchesCont = (l.contact_name || '').toLowerCase().includes(query);
+        const matchesPhone = (l.phone || '').includes(query);
+        const matchesEmail = (l.email || '').toLowerCase().includes(query);
         if (!matchesComp && !matchesCont && !matchesPhone && !matchesEmail) return false;
       }
 
-      // Stage / Category Tab (User Workflow Stages)
-      if (activeTab === 'raw_outreach') return l.stage === 'lead_added';
-      if (activeTab === 'audit') return l.stage === 'audit' || l.stage === 'pending_approval';
-      if (activeTab === 'audited') return l.stage === 'audited' || (l.stage === 'approved' && !l.current_assignee_id);
-      if (activeTab === 'cadence') return (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step < 6;
-      if (activeTab === 'all_done') return l.stage === 'all_done' || l.cadence_step >= 6;
-      if (activeTab === 'cold') return l.stage === 'cold';
-      if (activeTab === 'recycle') return l.stage === 'recycle_pool';
-      if (activeTab === 'duplicates') return duplicateLeadIds.has(l.id);
-
-      // Default 'all' in outreach pool shows leads not yet in closing/sales pipeline
-      return l.stage !== 'sales_pipeline' && l.stage !== 'closed_won' && l.stage !== 'closed_lost';
+      return true;
     });
-  }, [leads, channelFilter, searchQuery, activeTab, duplicateLeadIds]);
+  }, [baseOutreachLeads, channelFilter, cadenceFilter, searchQuery]);
+
+  // Step counts for 1-click pills
+  const stepCounts = useMemo(() => {
+    return {
+      all: baseOutreachLeads.length,
+      step0: baseOutreachLeads.filter(l => l.cadence_step === 0).length,
+      step1: baseOutreachLeads.filter(l => l.cadence_step === 1).length,
+      step2: baseOutreachLeads.filter(l => l.cadence_step === 2).length,
+      step3: baseOutreachLeads.filter(l => l.cadence_step === 3).length,
+      step4: baseOutreachLeads.filter(l => l.cadence_step === 4).length,
+      step5: baseOutreachLeads.filter(l => l.cadence_step === 5).length,
+      step6: baseOutreachLeads.filter(l => l.cadence_step >= 6 || l.stage === 'all_done').length
+    };
+  }, [baseOutreachLeads]);
+
+  // Channel live counts
+  const whatsappCount = useMemo(() => {
+    return baseOutreachLeads.filter(l => l.channel === 'whatsapp').length;
+  }, [baseOutreachLeads]);
+
+  const emailCount = useMemo(() => {
+    return baseOutreachLeads.filter(l => l.channel === 'email').length;
+  }, [baseOutreachLeads]);
 
   const handleOpenDetails = (lead: Lead) => {
     setSelectedLead(lead);
     setIsLeadDrawerOpen(true);
   };
 
-  // ACCESS DENIAL SCREEN FOR SALES CLOSERS
-  if (!hasAccess) {
-    const hunterMember = teamMembers.find(m => m.role === 'hunter');
-    const leaderMember = teamMembers.find(m => m.role === 'team_leader');
-
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center p-6">
-        <div className="max-w-md w-full p-8 rounded-3xl bg-slate-900 border border-rose-900/60 shadow-2xl text-center space-y-4">
-          <div className="w-16 h-16 rounded-2xl bg-rose-950/80 border border-rose-600/50 flex items-center justify-center mx-auto text-rose-400">
-            <Lock className="w-8 h-8" />
-          </div>
-          <h2 className="text-lg font-bold text-white tracking-wide">
-            Outreach Pool Access Restricted
-          </h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            Under Master Ads Injection Section Isolation policies, the <strong>Outreach Pool</strong> is reserved strictly for <strong>Hunters and Outreach Specialists</strong>. Sales Closers are isolated to the Sales Pipeline.
-          </p>
-
-          <div className="pt-4 border-t border-slate-800 space-y-2">
-            <p className="text-[11px] text-slate-500 font-semibold">Switch Persona to Inspect Outreach Pool:</p>
-            <div className="flex items-center justify-center space-x-2">
-              {hunterMember && (
-                <button
-                  onClick={() => setCurrentUser(hunterMember)}
-                  className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs shadow-md transition-colors"
-                >
-                  Switch to Hunter ({hunterMember.full_name.split(' ')[0]})
-                </button>
-              )}
-              {leaderMember && (
-                <button
-                  onClick={() => setCurrentUser(leaderMember)}
-                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md transition-colors"
-                >
-                  Switch to Leader ({leaderMember.full_name.split(' ')[0]})
-                </button>
-              )}
+  return (
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      
+      {/* 1. Header Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+        <div className="space-y-1">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/40 flex items-center justify-center text-blue-400 shadow-md">
+              <Send className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center space-x-2">
+                <span>3. OUTREACH POOL</span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-blue-950 text-blue-300 border border-blue-800">
+                  {baseOutreachLeads.length} Leads
+                </span>
+              </h1>
+              <p className="text-xs text-slate-400">
+                {isTeamLeader 
+                  ? 'টিম লিডার ভিউ: টিমের সকল মেম্বার কে কোন ধাপে মেসেজ ও ফলো-আপ পাঠাচ্ছে তা পর্যবেক্ষণ ও ফিল্টার করুন।' 
+                  : 'আপনার আউটরিচ কিউ: টিম লিডার আপনাকে ইমেইল/মেসেজ পাঠানোর জন্য যে লিডগুলো দিয়েছেন তা এখানে ধাপে ধাপে সাজানো রয়েছে।'}
+              </p>
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      
-      {/* Workspace Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <h1 className="text-2xl font-black text-white tracking-tight">
-              Outreach Pool
-            </h1>
-            <span className="px-2 py-0.5 rounded-md bg-cyan-950/80 border border-cyan-800 text-cyan-300 font-bold text-xs">
-              Hunters & Cadence Engine
-            </span>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Top-of-funnel lead discovery, cadence progression & leader approval gate
-          </p>
-        </div>
+        {/* Quick Actions */}
+        <div className="flex items-center space-x-3 shrink-0">
+          <Link
+            href="/audited-leads"
+            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold text-xs border border-slate-700 flex items-center space-x-1.5 transition-all"
+          >
+            <span>← 2. Audited Leads</span>
+          </Link>
 
-        {/* Quick Launch Buttons */}
-        <div className="flex items-center space-x-3">
           <button
             onClick={() => setIsFocusModeOpen(true)}
-            className="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs shadow-lg shadow-cyan-500/25 active:scale-95 transition-all"
+            className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/25 active:scale-95 transition-all"
           >
             <Zap className="w-4 h-4" />
             <span>Launch Focus Mode</span>
@@ -184,8 +185,170 @@ export default function OutreachPoolPage() {
         </div>
       </div>
 
-      {/* CHANNEL FILTER TABS (With Live Counter Badges) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-2 rounded-2xl bg-slate-900/90 border border-slate-800">
+      {/* 2. Team Leader Member Filter Selector */}
+      {isTeamLeader && (
+        <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="flex items-center space-x-2 text-slate-300 font-medium">
+            <Users className="w-4 h-4 text-cyan-400" />
+            <span className="font-bold text-white">মেম্বার অনুযায়ী ফিল্টার করুন (Team Leader Filter):</span>
+            <span className="text-slate-400">নির্দিষ্ট কোনো মেম্বারের আউটরিচ প্রগ্রেস দেখতে পারেন:</span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <select
+              value={selectedMemberFilter}
+              onChange={(e) => setSelectedMemberFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-slate-950 border border-cyan-500/50 font-bold text-white text-xs focus:outline-none"
+            >
+              <option value="all">👥 All Team Members ({baseOutreachLeads.length} Active Leads)</option>
+              {teamMembers.map(m => {
+                const memberLeadCount = leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied' || l.stage === 'all_done') && l.current_assignee_id === m.id).length;
+                return (
+                  <option key={m.id} value={m.id}>
+                    {m.role === 'team_leader' ? '👑' : '👤'} {m.full_name} ({memberLeadCount} leads)
+                  </option>
+                );
+              })}
+            </select>
+
+            {selectedMemberFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setSelectedMemberFilter('all')}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs"
+              >
+                Clear Member Filter
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Cadence Step 1-Click Navigation Tabs */}
+      <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none text-xs">
+        <button
+          type="button"
+          onClick={() => setCadenceFilter('all')}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 'all'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+          }`}
+        >
+          <span>All Cadence Steps</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-slate-300 font-mono">
+            {stepCounts.all}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCadenceFilter(0)}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 0
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-emerald-300 border border-slate-800'
+          }`}
+        >
+          <span>⚡ 1st Message</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-emerald-300 font-mono">
+            {stepCounts.step0}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCadenceFilter(1)}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 1
+              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-cyan-300 border border-slate-800'
+          }`}
+        >
+          <span>📨 1st Follow-up</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-cyan-300 font-mono">
+            {stepCounts.step1}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCadenceFilter(2)}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 2
+              ? 'bg-sky-600 text-white shadow-lg shadow-sky-600/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-sky-300 border border-slate-800'
+          }`}
+        >
+          <span>📨 2nd Follow-up</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-sky-300 font-mono">
+            {stepCounts.step2}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCadenceFilter(3)}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 3
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-indigo-300 border border-slate-800'
+          }`}
+        >
+          <span>📨 3rd Follow-up</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-indigo-300 font-mono">
+            {stepCounts.step3}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCadenceFilter(4)}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 4
+              ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-violet-300 border border-slate-800'
+          }`}
+        >
+          <span>📨 4th Follow-up</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-violet-300 font-mono">
+            {stepCounts.step4}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCadenceFilter(5)}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 5
+              ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-purple-300 border border-slate-800'
+          }`}
+        >
+          <span>📨 5th Follow-up</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-purple-300 font-mono">
+            {stepCounts.step5}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setCadenceFilter(6)}
+          className={`px-3 py-2 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1.5 ${
+            cadenceFilter === 6
+              ? 'bg-emerald-700 text-white shadow-lg shadow-emerald-700/30 font-black'
+              : 'bg-slate-900 text-slate-400 hover:text-emerald-300 border border-slate-800'
+          }`}
+        >
+          <span>🎉 5 FU Completed / All Done</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-emerald-300 font-mono">
+            {stepCounts.step6}
+          </span>
+        </button>
+      </div>
+
+      {/* 4. Channel Filters, Search & View Mode Toggle */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800">
         
         {/* Channel Tabs */}
         <div className="flex items-center space-x-2">
@@ -197,9 +360,9 @@ export default function OutreachPoolPage() {
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <span>[All Channels]</span>
+            <span>All Channels</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-950 text-slate-300 font-mono">
-              {leads.length}
+              {baseOutreachLeads.length}
             </span>
           </button>
 
@@ -212,7 +375,7 @@ export default function OutreachPoolPage() {
             }`}
           >
             <MessageCircle className="w-3.5 h-3.5" />
-            <span>[💬 WhatsApp Only]</span>
+            <span>WhatsApp</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-900/60 text-emerald-300 font-mono">
               {whatsappCount}
             </span>
@@ -227,7 +390,7 @@ export default function OutreachPoolPage() {
             }`}
           >
             <Mail className="w-3.5 h-3.5" />
-            <span>[📧 Email Only]</span>
+            <span>Email</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-900/60 text-cyan-300 font-mono">
               {emailCount}
             </span>
@@ -245,7 +408,7 @@ export default function OutreachPoolPage() {
                   ? 'bg-emerald-950 border border-emerald-500/60 text-emerald-300 shadow'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
-              title="Table View (Nexus Outreach Engine)"
+              title="Table View"
             >
               <List className="w-3.5 h-3.5" />
               <span className="text-[11px] font-bold">Table View</span>
@@ -278,110 +441,24 @@ export default function OutreachPoolPage() {
         </div>
       </div>
 
-      {/* STAGE & CATEGORY NAVIGATION TABS (User Specified Workflow) */}
-      <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 overflow-x-auto scrollbar-none text-xs">
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
-            activeTab === 'all' ? 'bg-cyan-950 text-cyan-300 border border-cyan-800' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          All Outreach ({leads.filter(l => l.stage !== 'sales_pipeline' && l.stage !== 'closed_won' && l.stage !== 'closed_lost').length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('raw_outreach')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
-            activeTab === 'raw_outreach' ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'text-slate-400 hover:text-blue-300'
-          }`}
-        >
-          <span>📥 1. Raw Outreach</span>
-          <span className="px-1.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px]">
-            {leads.filter(l => l.stage === 'lead_added' && !l.is_dnc).length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
-            activeTab === 'audit' ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'text-slate-400 hover:text-amber-300'
-          }`}
-        >
-          <span>🔍 2. Audit Stage</span>
-          <span className="px-1.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px]">
-            {leads.filter(l => (l.stage === 'audit' || l.stage === 'pending_approval') && !l.is_dnc).length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('audited')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
-            activeTab === 'audited' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'text-slate-400 hover:text-emerald-300'
-          }`}
-        >
-          <span>✅ 3. Audited (Ready to Assign)</span>
-          <span className="px-1.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px]">
-            {leads.filter(l => (l.stage === 'audited' || (l.stage === 'approved' && !l.current_assignee_id)) && !l.is_dnc).length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('cadence')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
-            activeTab === 'cadence' ? 'bg-cyan-950 text-cyan-300 border border-cyan-800' : 'text-slate-400 hover:text-cyan-300'
-          }`}
-        >
-          <span>🎯 4. In Cadence (Today&apos;s Work)</span>
-          <span className="px-1.5 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px]">
-            {leads.filter(l => (l.stage === 'contacted' || l.stage === 'replied') && l.cadence_step < 6 && !l.is_dnc).length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('all_done')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
-            activeTab === 'all_done' ? 'bg-purple-950 text-purple-300 border border-purple-800' : 'text-slate-400 hover:text-purple-300'
-          }`}
-        >
-          <span>🎉 5. All Done (5 FU Completed)</span>
-          <span className="px-1.5 rounded-full bg-purple-500/20 text-purple-400 text-[10px]">
-            {leads.filter(l => (l.stage === 'all_done' || l.cadence_step >= 6) && !l.is_dnc).length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('cold')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors ${
-            activeTab === 'cold' ? 'bg-slate-800 text-slate-300 border border-slate-700' : 'text-slate-400 hover:text-slate-300'
-          }`}
-        >
-          Cold ({leads.filter(l => l.stage === 'cold').length})
-        </button>
-
-        {/* RETROACTIVE DUPLICATE TAB */}
-        <button
-          onClick={() => setActiveTab('duplicates')}
-          className={`px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap transition-colors flex items-center space-x-1.5 ${
-            activeTab === 'duplicates'
-              ? 'bg-amber-950/80 border border-amber-500 text-amber-300'
-              : 'text-amber-400 hover:bg-amber-950/30'
-          }`}
-        >
-          <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-          <span>⚠️ Duplicate Contacts ({duplicateLeadIds.size})</span>
-        </button>
-      </div>
-
-      {/* LEADS DISPLAY (TABLE VIEW AS DEFAULT) */}
+      {/* 5. Leads Display (Table View / Grid View) */}
       {filteredLeads.length === 0 ? (
         <div className="p-16 rounded-3xl bg-slate-900/40 border border-dashed border-slate-800 text-center space-y-3">
           <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto text-slate-500">
             <Filter className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-bold text-white">No Leads Found</h3>
+          <h3 className="text-sm font-bold text-white">আউটরিচ পুলে কোনো লিড পাওয়া যায়নি</h3>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">
-            No contacts match the selected stage and channel filters. Add a new lead or adjust your filter selection.
+            {isTeamLeader 
+              ? 'অডিটেড লিড সেকশন থেকে মেম্বারদের মাঝে লিড এসাইন করুন যাতে সেগুলো আউটরিচ পুলে জমা হয়।' 
+              : 'টিম লিডার যখন আপনাকে মেসেজ পাঠানোর জন্য কোনো অডিটেড লিড এসাইন করবেন, তখন সেগুলো এখানে প্রদর্শিত হবে।'}
           </p>
+          <Link
+            href="/audited-leads"
+            className="inline-block px-4 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs shadow-md mt-2"
+          >
+            Go to 2. Audited Leads →
+          </Link>
         </div>
       ) : viewMode === 'table' ? (
         <LeadTableView

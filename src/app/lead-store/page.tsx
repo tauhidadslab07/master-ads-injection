@@ -28,7 +28,8 @@ import {
   Sparkles,
   Users,
   ShieldCheck,
-  Lock
+  Lock,
+  Calendar
 } from 'lucide-react';
 import { AssignMemberModal } from '@/components/leads/AssignMemberModal';
 
@@ -79,10 +80,16 @@ export default function LeadStorePage() {
   }, [toastMessage]);
 
   // Lead Store contains raw collected leads ('lead_added') waiting for audit assignment
+  // Team Leader sees all raw leads; Members see ONLY their own collected leads
   const storeLeads = useMemo(() => {
     return leads.filter(l => {
       // Must be newly added raw lead
       if (l.stage !== 'lead_added') return false;
+
+      // Regular member only sees leads collected by them
+      if (!isTeamLeader && l.original_hunter_id !== currentUser.id) {
+        return false;
+      }
 
       // Channel filter
       if (channelFilter === 'whatsapp' && l.channel !== 'whatsapp') return false;
@@ -103,10 +110,11 @@ export default function LeadStorePage() {
 
       return true;
     });
-  }, [leads, channelFilter, searchQuery]);
+  }, [leads, channelFilter, searchQuery, isTeamLeader, currentUser.id]);
 
   // Overall counts
   const totalStoreCount = leads.filter(l => l.stage === 'lead_added').length;
+  const myStoreCount = leads.filter(l => l.stage === 'lead_added' && l.original_hunter_id === currentUser.id).length;
   const underAuditCount = leads.filter(l => l.stage === 'audit').length;
   const auditPassedCount = leads.filter(l => l.stage === 'audited').length;
   const totalAuditedPool = underAuditCount + auditPassedCount;
@@ -211,11 +219,13 @@ export default function LeadStorePage() {
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center space-x-2">
                 <span>1. LEAD STORE</span>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-cyan-950 text-cyan-300 border border-cyan-800">
-                  {totalStoreCount} Raw Leads
+                  {isTeamLeader ? `${totalStoreCount} Raw Leads (Team All)` : `${myStoreCount} My Collected Leads`}
                 </span>
               </h1>
               <p className="text-xs text-slate-400">
-                কালেক্ট করা লিডগুলো এখানে জমা থাকে। টিম লিডার যেকোনো মেম্বারকে অডিটের জন্য নির্ধারণ (Assign for Audit) করবেন।
+                {isTeamLeader 
+                  ? 'কালেক্ট করা সমস্ত কাঁচা লিড এখানে জমা থাকে। টিম লিডার যেকোনো মেম্বারকে অডিটের জন্য নির্ধারণ (Assign for Audit) করবেন।' 
+                  : 'আপনি নিজে যে লিডগুলো সংগ্রহ করেছেন সেগুলোই কেবল এখানে সংগৃহীত তারিখ ও সময়সহ দেখতে পাচ্ছেন।'}
               </p>
             </div>
           </div>
@@ -449,6 +459,7 @@ export default function LeadStorePage() {
                 />
               </th>
               <th className="py-4 px-4">COMPANY & WEBSITE</th>
+              <th className="py-4 px-4">COLLECTED DATE & TIME</th>
               <th className="py-4 px-4">COUNTRY & TIME</th>
               <th className="py-4 px-4">CHANNEL CONTACT</th>
               <th className="py-4 px-4">COLLECTED BY (HUNTER)</th>
@@ -459,7 +470,7 @@ export default function LeadStorePage() {
           <tbody className="divide-y divide-slate-800/60 text-xs">
             {storeLeads.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-slate-500 text-xs">
+                <td colSpan={7} className="py-12 text-center text-slate-500 text-xs">
                   <div className="max-w-sm mx-auto space-y-2">
                     <p className="text-sm font-bold text-slate-300">লিড স্টোরে কোনো পেন্ডিং লিড নেই</p>
                     <p className="text-xs text-slate-500">
@@ -526,6 +537,19 @@ export default function LeadStorePage() {
                             <ExternalLink className="w-2.5 h-2.5" />
                           </a>
                         )}
+                      </div>
+                    </td>
+
+                    {/* Collected Date & Time */}
+                    <td className="py-4 px-4 align-middle">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-200">
+                          <Calendar className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                          <span>{lead.created_at ? new Date(lead.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A'}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono pl-5">
+                          {lead.created_at ? new Date(lead.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </div>
                       </div>
                     </td>
 

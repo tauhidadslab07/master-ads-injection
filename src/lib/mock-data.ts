@@ -238,17 +238,19 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://herlanbd.com',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'audit',
     original_hunter_id: 'usr-tahmeed',
-    current_assignee_id: undefined,
+    auditor_id: 'usr-mustafizur',
+    current_assignee_id: 'usr-mustafizur',
+    audit_assigned_at: '2026-10-16T10:00:00Z', // 3 days ago: OVERDUE > 2 DAYS (RED SIGN & PERFORMANCE ALERT!)
     is_audit_sample: false,
     cadence_step: 0,
     last_client_reaction: 'unseen',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 50000,
-    created_at: '2026-10-19T10:00:00Z',
-    updated_at: '2026-10-19T10:00:00Z'
+    created_at: '2026-10-16T09:30:00Z',
+    updated_at: '2026-10-16T10:00:00Z'
   },
   {
     id: 'lead-bd-06',
@@ -260,17 +262,19 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://klothio.com',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'audit',
     original_hunter_id: 'usr-alauddin',
-    current_assignee_id: undefined,
+    auditor_id: 'usr-sunny',
+    current_assignee_id: 'usr-sunny',
+    audit_assigned_at: '2026-10-19T08:00:00Z', // Today (On-time audit)
     is_audit_sample: false,
     cadence_step: 0,
     last_client_reaction: 'unseen',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 35000,
-    created_at: '2026-10-19T10:10:00Z',
-    updated_at: '2026-10-19T10:10:00Z'
+    created_at: '2026-10-19T07:45:00Z',
+    updated_at: '2026-10-19T08:00:00Z'
   },
   {
     id: 'lead-bd-07',
@@ -282,17 +286,20 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://priyoshop.com',
     niche: 'saas',
-    stage: 'lead_added',
+    stage: 'audited',
     original_hunter_id: 'usr-imam',
-    current_assignee_id: undefined,
+    auditor_id: 'usr-mustafizur',
+    audited_by: 'usr-mustafizur',
+    audited_at: '2026-10-19T09:00:00Z',
+    current_assignee_id: undefined, // Ready for Team Leader to assign for sales outreach!
     is_audit_sample: false,
     cadence_step: 0,
     last_client_reaction: 'unseen',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 70000,
-    created_at: '2026-10-19T10:20:00Z',
-    updated_at: '2026-10-19T10:20:00Z'
+    created_at: '2026-10-18T14:20:00Z',
+    updated_at: '2026-10-19T09:00:00Z'
   },
   {
     id: 'lead-bd-08',
@@ -304,17 +311,20 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'email',
     website: 'https://sharetrip.net',
     niche: 'agency',
-    stage: 'lead_added',
+    stage: 'audited',
     original_hunter_id: 'usr-jahid',
-    current_assignee_id: undefined,
+    auditor_id: 'usr-sunny',
+    audited_by: 'usr-sunny',
+    audited_at: '2026-10-19T09:30:00Z',
+    current_assignee_id: undefined, // Ready for Team Leader to assign for sales outreach!
     is_audit_sample: false,
     cadence_step: 0,
     last_client_reaction: 'unseen',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 65000,
-    created_at: '2026-10-19T10:30:00Z',
-    updated_at: '2026-10-19T10:30:00Z'
+    created_at: '2026-10-18T15:30:00Z',
+    updated_at: '2026-10-19T09:30:00Z'
   },
   {
     id: 'lead-bd-09',
@@ -326,17 +336,17 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://chaldal.com',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'contacted',
     original_hunter_id: 'usr-tauhid',
-    current_assignee_id: undefined,
+    current_assignee_id: 'usr-mustafizur', // Assigned to Mustafizur by Leader
     is_audit_sample: false,
-    cadence_step: 0,
+    cadence_step: 0, // 1st Message due
     last_client_reaction: 'unseen',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 75000,
-    created_at: '2026-10-19T10:40:00Z',
-    updated_at: '2026-10-19T10:40:00Z'
+    created_at: '2026-10-17T10:40:00Z',
+    updated_at: '2026-10-19T08:30:00Z'
   },
   {
     id: 'lead-bd-10',
@@ -348,17 +358,17 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://yellowclothing.net',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'contacted',
     original_hunter_id: 'usr-mustafizur',
-    current_assignee_id: undefined,
+    current_assignee_id: 'usr-mustafizur',
     is_audit_sample: false,
-    cadence_step: 0,
-    last_client_reaction: 'unseen',
+    cadence_step: 1, // 1st Follow-up (FU 1) due
+    last_client_reaction: 'seen',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 40000,
-    created_at: '2026-10-19T10:50:00Z',
-    updated_at: '2026-10-19T10:50:00Z'
+    created_at: '2026-10-16T10:50:00Z',
+    updated_at: '2026-10-18T10:50:00Z'
   },
   {
     id: 'lead-bd-11',
@@ -370,17 +380,17 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://aarong.com',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'contacted',
     original_hunter_id: 'usr-sunny',
-    current_assignee_id: undefined,
+    current_assignee_id: 'usr-mustafizur',
     is_audit_sample: false,
-    cadence_step: 0,
-    last_client_reaction: 'unseen',
+    cadence_step: 2, // 2nd Follow-up (FU 2) due
+    last_client_reaction: 'replied',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 90000,
-    created_at: '2026-10-19T11:00:00Z',
-    updated_at: '2026-10-19T11:00:00Z'
+    created_at: '2026-10-15T11:00:00Z',
+    updated_at: '2026-10-17T11:00:00Z'
   },
   {
     id: 'lead-bd-12',
@@ -392,17 +402,17 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://rokomari.com',
     niche: 'saas',
-    stage: 'lead_added',
+    stage: 'contacted',
     original_hunter_id: 'usr-sakib',
-    current_assignee_id: undefined,
+    current_assignee_id: 'usr-mustafizur',
     is_audit_sample: false,
-    cadence_step: 0,
-    last_client_reaction: 'unseen',
+    cadence_step: 3, // 3rd Follow-up (FU 3) due
+    last_client_reaction: 'interested',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 48000,
-    created_at: '2026-10-19T11:05:00Z',
-    updated_at: '2026-10-19T11:05:00Z'
+    created_at: '2026-10-14T11:05:00Z',
+    updated_at: '2026-10-16T11:05:00Z'
   },
   {
     id: 'lead-bd-13',
@@ -414,17 +424,17 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://leatherex-bd.com',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'contacted',
     original_hunter_id: 'usr-tahmeed',
-    current_assignee_id: undefined,
+    current_assignee_id: 'usr-sunny',
     is_audit_sample: false,
-    cadence_step: 0,
-    last_client_reaction: 'unseen',
+    cadence_step: 4, // 4th Follow-up (FU 4) due
+    last_client_reaction: 'seen',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 38000,
-    created_at: '2026-10-19T11:10:00Z',
-    updated_at: '2026-10-19T11:10:00Z'
+    created_at: '2026-10-13T11:10:00Z',
+    updated_at: '2026-10-15T11:10:00Z'
   },
   {
     id: 'lead-bd-14',
@@ -436,17 +446,17 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://dorjibari.com.bd',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'contacted',
     original_hunter_id: 'usr-alauddin',
-    current_assignee_id: undefined,
+    current_assignee_id: 'usr-sunny',
     is_audit_sample: false,
-    cadence_step: 0,
-    last_client_reaction: 'unseen',
+    cadence_step: 5, // 5th Follow-up (FU 5) due
+    last_client_reaction: 'replied',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 42000,
-    created_at: '2026-10-19T11:15:00Z',
-    updated_at: '2026-10-19T11:15:00Z'
+    created_at: '2026-10-12T11:15:00Z',
+    updated_at: '2026-10-14T11:15:00Z'
   },
   {
     id: 'lead-bd-15',
@@ -458,17 +468,17 @@ export const INITIAL_LEADS: Lead[] = [
     channel: 'whatsapp',
     website: 'https://artisanoutfitters.com',
     niche: 'dtc',
-    stage: 'lead_added',
+    stage: 'all_done',
     original_hunter_id: 'usr-imam',
-    current_assignee_id: undefined,
+    current_assignee_id: 'usr-sunny',
     is_audit_sample: false,
-    cadence_step: 0,
-    last_client_reaction: 'unseen',
+    cadence_step: 6, // All Done
+    last_client_reaction: 'interested',
     recycled_count: 0,
     is_dnc: false,
     deal_value: 52000,
-    created_at: '2026-10-19T11:20:00Z',
-    updated_at: '2026-10-19T11:20:00Z'
+    created_at: '2026-10-10T11:20:00Z',
+    updated_at: '2026-10-14T11:20:00Z'
   },
   {
     id: 'lead-bd-16',

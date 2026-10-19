@@ -85,8 +85,9 @@ export function MemberPersonalWorkspace() {
     return teamMembers.find(m => m.id === inspectedMemberId) || currentUser;
   }, [teamMembers, inspectedMemberId, currentUser]);
 
-  // Section 1 Queue Tab
+  // Section 1 Queue Tab & Cadence Filter for 1-Click Today's Work
   const [activeQueueTab, setActiveQueueTab] = useState<'next_best' | 'overdue' | 'pending_audits'>('next_best');
+  const [dailyCadenceFilter, setDailyCadenceFilter] = useState<'all' | number>('all');
   
   // Copy to clipboard state
   const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
@@ -125,6 +126,13 @@ export function MemberPersonalWorkspace() {
     setTimeout(() => setCopiedPhoneId(null), 2000);
   };
 
+  // Helper to check if an audit is overdue (> 48 hours / 2 days)
+  const isAuditOverdue = (l: Lead) => {
+    if (l.stage !== 'audit') return false;
+    const assignedTime = l.audit_assigned_at || l.updated_at || l.created_at;
+    return assignedTime ? (Date.now() - new Date(assignedTime).getTime()) >= 48 * 3600 * 1000 : false;
+  };
+
   // 1. Leads assigned to the active member
   const memberAssignedLeads = useMemo(() => {
     return leads.filter(l => l.current_assignee_id === activeMember.id && !l.is_dnc);
@@ -135,17 +143,50 @@ export function MemberPersonalWorkspace() {
     return leads.filter(l => l.auditor_id === activeMember.id && l.stage === 'audit');
   }, [leads, activeMember.id]);
 
+  // Overdue audits assigned to active member
+  const activeMemberOverdueAudits = useMemo(() => {
+    return memberAuditLeads.filter(isAuditOverdue);
+  }, [memberAuditLeads]);
+
+  // Overdue audits across the whole team (for team leader alert)
+  const allOverdueAudits = useMemo(() => {
+    return leads.filter(l => l.stage === 'audit' && isAuditOverdue(l));
+  }, [leads]);
+
   // 3. Leads originally hunted by active member
   const memberHuntedLeads = useMemo(() => {
     return leads.filter(l => l.original_hunter_id === activeMember.id);
   }, [leads, activeMember.id]);
 
+  // Cadence Step Breakdown for Today's Work
+  const cadenceCounts = useMemo(() => {
+    return {
+      step0: memberAssignedLeads.filter(l => l.cadence_step === 0 && l.stage !== 'all_done').length,
+      step1: memberAssignedLeads.filter(l => l.cadence_step === 1 && l.stage !== 'all_done').length,
+      step2: memberAssignedLeads.filter(l => l.cadence_step === 2 && l.stage !== 'all_done').length,
+      step3: memberAssignedLeads.filter(l => l.cadence_step === 3 && l.stage !== 'all_done').length,
+      step4: memberAssignedLeads.filter(l => l.cadence_step === 4 && l.stage !== 'all_done').length,
+      step5: memberAssignedLeads.filter(l => l.cadence_step === 5 && l.stage !== 'all_done').length,
+    };
+  }, [memberAssignedLeads]);
+
   // Section 1 Queues:
   // a) Recommended Next Best Action
-  // Criteria: Client is in business hours, OR prospect previously replied/interested, OR scheduled callback today
+  // Section 1 Queues:
+  // a) Recommended Next Best Action (filtered by dailyCadenceFilter if set)
   const recommendedLeads = useMemo(() => {
     return memberAssignedLeads.filter(l => {
       if (l.stage === 'all_done' || l.stage === 'closed_won' || l.stage === 'closed_lost') return false;
+
+      // 1-Click Cadence Step Filter (0 = 1st Msg, 1..5 = Follow-ups)
+      if (dailyCadenceFilter !== 'all' && l.cadence_step !== dailyCadenceFilter) {
+        return false;
+      }
+
+      // If a specific cadence step is filtered by user, show all leads in that step directly
+      if (dailyCadenceFilter !== 'all') {
+        return true;
+      }
 
       // Has prospect replied or interested?
       const isEngaged = l.last_client_reaction === 'replied' || l.last_client_reaction === 'interested' || l.stage === 'replied';
@@ -160,7 +201,7 @@ export function MemberPersonalWorkspace() {
 
       return isEngaged || isBusinessHours || isCallbackToday;
     });
-  }, [memberAssignedLeads]);
+  }, [memberAssignedLeads, dailyCadenceFilter]);
 
   // b) Overdue Follow-ups
   // Criteria: in cadence step >= 1 with last status unseen or due
@@ -200,6 +241,17 @@ export function MemberPersonalWorkspace() {
   }, [memberAssignedLeads.length, overdueLeads.length]);
 
   const trafficLight = useMemo(() => {
+    // If member has overdue audits (> 2 days), health score is strictly marked incomplete in red!
+    if (activeMemberOverdueAudits.length > 0) {
+      return {
+        color: 'red',
+        badgeClass: 'bg-rose-950 text-rose-300 border-rose-500/80 ring-1 ring-rose-500/50',
+        dotClass: 'bg-rose-400',
+        text: `🔴 Red: সতর্কতা সংকেত! আপনার ${activeMemberOverdueAudits.length}টি অডিট ২ দিন পার হয়ে গেছে (পারফরম্যান্স ইনকমপ্লিট)।`,
+        shortText: 'Audit Incomplete (> 2 Days)'
+      };
+    }
+
     if (successRate >= 90) {
       return {
         color: 'green',
@@ -225,7 +277,7 @@ export function MemberPersonalWorkspace() {
         shortText: 'Warning Alert'
       };
     }
-  }, [successRate]);
+  }, [successRate, activeMemberOverdueAudits.length]);
 
   // Section 4: Private Mistake & Quality Tracker
   const memberRejectedLeads = useMemo(() => {
@@ -332,6 +384,61 @@ export function MemberPersonalWorkspace() {
           <button onClick={() => setEmergencyLeaveNotice(null)} className="p-1 text-rose-300 hover:text-white">
             <X className="w-4 h-4" />
           </button>
+        </div>
+      )}
+
+      {/* 🔴 OVERDUE AUDITS ALERT BANNER: MEMBER VIEW */}
+      {activeMemberOverdueAudits.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-3xl bg-rose-950/95 border-2 border-rose-500 text-rose-100 shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-center space-x-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-600/30 border border-rose-500 flex items-center justify-center text-rose-300 shrink-0">
+              <AlertTriangle className="w-7 h-7 text-rose-400 animate-bounce" />
+            </div>
+            <div className="space-y-0.5">
+              <div className="flex items-center space-x-2">
+                <h3 className="text-sm font-black text-white">
+                  🔴 সতর্কতা: আপনার অডিট কাজ ২ দিন পার হয়ে গেছে!
+                </h3>
+                <span className="px-2 py-0.5 rounded-full bg-rose-500 text-slate-950 font-black text-[10px]">
+                  {activeMemberOverdueAudits.length}টি পেন্ডিং
+                </span>
+              </div>
+              <p className="text-xs text-rose-200/90 leading-relaxed">
+                টিম লিডার আপনাকে অডিটের জন্য যে লিড দিয়েছিলেন তা ২ দিন পার হয়ে গেছে কিন্তু অডিট করা হয়নি। এর ফলে আপনার পারফরম্যান্স ওয়ার্ক &quot;ইনকমপ্লিট&quot; হিসেবে চিহ্নিত করা হয়েছে। দ্রুত অডিট সম্পন্ন করুন।
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/audited-leads"
+            className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-400 text-slate-950 font-black text-xs shadow-lg shadow-rose-500/30 flex items-center space-x-1.5 transition-all active:scale-95 shrink-0"
+          >
+            <span>2. Audited Leads সেকশনে যান →</span>
+          </Link>
+        </div>
+      )}
+
+      {/* 🔴 OVERDUE AUDITS ALERT BANNER: TEAM LEADER VIEW */}
+      {currentUser.role === 'team_leader' && allOverdueAudits.length > 0 && (
+        <div className="p-4 rounded-3xl bg-rose-950/80 border-2 border-rose-500/80 text-rose-100 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center space-x-3">
+            <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 animate-bounce" />
+            <div>
+              <p className="text-sm font-black text-white flex items-center space-x-2">
+                <span>🔴 টিম লিডার এলার্ট: টিমের {allOverdueAudits.length}টি লিডের অডিট ২ দিন পেরিয়ে গেছে!</span>
+              </p>
+              <p className="text-xs text-rose-300/90">
+                সংশ্লিষ্ট মেম্বারদের পারফরম্যান্স ইনকমপ্লিট হিসেবে চিহ্নিত হয়েছে এবং অডিট সেকশনে লাল সংকেত দিয়ে দেখানো হচ্ছে।
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/audited-leads"
+            className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md shrink-0 flex items-center space-x-1"
+          >
+            <span>2. Audited Leads দেখুন →</span>
+          </Link>
         </div>
       )}
 
@@ -810,6 +917,115 @@ export function MemberPersonalWorkspace() {
           </button>
         </div>
 
+        {/* 1-Click Today's Responsibility Cadence Filters (1st Msg, 1st-5th FU) */}
+        {activeQueueTab === 'next_best' && (
+          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none text-xs border-b border-slate-800/60 pb-2.5">
+            <span className="text-[11px] font-bold text-slate-400 shrink-0 mr-1">আজকের দায়িত্ব (Cadence Filter):</span>
+            
+            <button
+              type="button"
+              onClick={() => setDailyCadenceFilter('all')}
+              className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all ${
+                dailyCadenceFilter === 'all'
+                  ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              All Focus Leads
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDailyCadenceFilter(0)}
+              className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1 ${
+                dailyCadenceFilter === 0
+                  ? 'bg-emerald-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-emerald-300 border border-slate-800'
+              }`}
+            >
+              <span>⚡ 1st Message</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 text-emerald-300 font-mono font-bold">
+                {cadenceCounts.step0}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDailyCadenceFilter(1)}
+              className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1 ${
+                dailyCadenceFilter === 1
+                  ? 'bg-cyan-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-cyan-300 border border-slate-800'
+              }`}
+            >
+              <span>📨 1st Follow-up</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 text-cyan-300 font-mono font-bold">
+                {cadenceCounts.step1}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDailyCadenceFilter(2)}
+              className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1 ${
+                dailyCadenceFilter === 2
+                  ? 'bg-sky-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-sky-300 border border-slate-800'
+              }`}
+            >
+              <span>📨 2nd Follow-up</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 text-sky-300 font-mono font-bold">
+                {cadenceCounts.step2}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDailyCadenceFilter(3)}
+              className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1 ${
+                dailyCadenceFilter === 3
+                  ? 'bg-indigo-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-indigo-300 border border-slate-800'
+              }`}
+            >
+              <span>📨 3rd Follow-up</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 text-indigo-300 font-mono font-bold">
+                {cadenceCounts.step3}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDailyCadenceFilter(4)}
+              className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1 ${
+                dailyCadenceFilter === 4
+                  ? 'bg-violet-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-violet-300 border border-slate-800'
+              }`}
+            >
+              <span>📨 4th Follow-up</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 text-violet-300 font-mono font-bold">
+                {cadenceCounts.step4}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDailyCadenceFilter(5)}
+              className={`px-3 py-1 rounded-xl font-bold whitespace-nowrap transition-all flex items-center space-x-1 ${
+                dailyCadenceFilter === 5
+                  ? 'bg-purple-500 text-slate-950 font-black shadow-sm'
+                  : 'bg-slate-950 text-slate-400 hover:text-purple-300 border border-slate-800'
+              }`}
+            >
+              <span>📨 5th Follow-up</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-900 text-purple-300 font-mono font-bold">
+                {cadenceCounts.step5}
+              </span>
+            </button>
+          </div>
+        )}
+
         {/* Action Queue Cards Feed */}
         <div className="space-y-3 pt-2">
           {activeQueueTab === 'next_best' && (
@@ -842,9 +1058,24 @@ export function MemberPersonalWorkspace() {
                               🔥 Interested
                             </span>
                           )}
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${
+                            lead.cadence_step === 0 
+                              ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                              : lead.cadence_step === 1
+                                ? 'bg-cyan-950 text-cyan-300 border-cyan-800'
+                                : lead.cadence_step === 2
+                                  ? 'bg-sky-950 text-sky-300 border-sky-800'
+                                  : lead.cadence_step === 3
+                                    ? 'bg-indigo-950 text-indigo-300 border-indigo-800'
+                                    : lead.cadence_step === 4
+                                      ? 'bg-violet-950 text-violet-300 border-violet-800'
+                                      : 'bg-purple-950 text-purple-300 border-purple-800'
+                          }`}>
+                            {lead.cadence_step === 0 ? '⚡ 1st Message' : `📨 ${lead.cadence_step}${lead.cadence_step === 1 ? 'st' : lead.cadence_step === 2 ? 'nd' : lead.cadence_step === 3 ? 'rd' : 'th'} Follow-up`}
+                          </span>
                         </div>
                         <p className="text-[11px] text-slate-400">
-                          {lead.website || 'No website provided'} • Step {lead.cadence_step} ({CADENCE_STEPS[lead.cadence_step]?.dayLabel})
+                          {lead.website || 'No website provided'} • {CADENCE_STEPS[lead.cadence_step]?.dayLabel || 'Day 1'}
                         </p>
                       </div>
 
@@ -1031,24 +1262,42 @@ export function MemberPersonalWorkspace() {
                     <UserCheck className="w-3.5 h-3.5" />
                     <span>আপনার পেন্ডিং অডিট কিউ ({memberAuditLeads.length}):</span>
                   </h4>
-                  {memberAuditLeads.map(lead => (
-                    <div key={lead.id} className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-bold text-white">{lead.company_name}</p>
-                        <p className="text-[11px] text-slate-400">Website: {lead.website || 'N/A'}</p>
+                  {memberAuditLeads.map(lead => {
+                    const isOverdue = isAuditOverdue(lead);
+                    return (
+                      <div key={lead.id} className={`p-3.5 rounded-2xl flex items-center justify-between text-xs ${
+                        isOverdue 
+                          ? 'bg-rose-950/40 border border-rose-500/80 shadow-md ring-1 ring-rose-500/40' 
+                          : 'bg-slate-950 border border-slate-800'
+                      }`}>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <p className="font-bold text-white">{lead.company_name}</p>
+                            {isOverdue && (
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500 text-slate-950 font-black text-[10px] animate-pulse">
+                                🔴 ২ দিন পার (ইনকমপ্লিট)
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400">Website: {lead.website || 'N/A'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            passAudit(lead.id);
+                            soundEngine.playSuccessChime();
+                          }}
+                          className={`px-3 py-1.5 rounded-xl font-black text-xs shadow-md ${
+                            isOverdue
+                              ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/30'
+                              : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                          }`}
+                        >
+                          ✓ Audit Complete
+                        </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          passAudit(lead.id);
-                          soundEngine.playSuccessChime();
-                        }}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md"
-                      >
-                        ✓ Audit Complete
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

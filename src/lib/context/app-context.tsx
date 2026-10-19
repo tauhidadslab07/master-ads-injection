@@ -468,7 +468,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateLead(leadId, {
       stage: 'audit',
       auditor_id: auditorId,
-      current_assignee_id: auditorId
+      current_assignee_id: auditorId,
+      audit_assigned_at: new Date().toISOString()
     });
 
     addActivityNote(
@@ -553,6 +554,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           stage: 'audit',
           auditor_id: auditorId || l.auditor_id,
           current_assignee_id: auditorId || l.current_assignee_id,
+          audit_assigned_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
       }

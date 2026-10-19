@@ -27,7 +27,9 @@ import {
   Check,
   ChevronRight,
   Database,
-  Lock
+  Lock,
+  AlertTriangle,
+  Calendar
 } from 'lucide-react';
 import { AssignMemberModal } from '@/components/leads/AssignMemberModal';
 
@@ -91,15 +93,41 @@ export default function AuditedLeadsPage() {
     setBulkSalesMemberId('');
   }, [activeTab]);
 
+  // Helper to check if an audit has exceeded 2 days (48 hours)
+  const isAuditOverdue = (l: Lead) => {
+    if (l.stage !== 'audit') return false;
+    const assignedTime = l.audit_assigned_at || l.updated_at || l.created_at;
+    return assignedTime ? (Date.now() - new Date(assignedTime).getTime()) >= 48 * 3600 * 1000 : false;
+  };
+
   // Leads under audit review (assigned to auditor from Lead Store)
+  // Team Leader sees all assigned audits; Member sees ONLY leads assigned to them for audit
   const underAuditLeads = useMemo(() => {
-    return leads.filter(l => l.stage === 'audit');
-  }, [leads]);
+    return leads.filter(l => {
+      if (l.stage !== 'audit') return false;
+      if (!isTeamLeader && l.auditor_id !== currentUser.id && l.current_assignee_id !== currentUser.id) {
+        return false;
+      }
+      return true;
+    });
+  }, [leads, isTeamLeader, currentUser.id]);
 
   // Audited leads waiting for Team Leader sales assignment
+  // Team Leader sees all audited leads; Member sees ONLY leads they audited & completed
   const readyForSalesLeads = useMemo(() => {
-    return leads.filter(l => l.stage === 'audited');
-  }, [leads]);
+    return leads.filter(l => {
+      if (l.stage !== 'audited') return false;
+      if (!isTeamLeader && l.audited_by !== currentUser.id && l.approved_by !== currentUser.id && l.auditor_id !== currentUser.id) {
+        return false;
+      }
+      return true;
+    });
+  }, [leads, isTeamLeader, currentUser.id]);
+
+  // Overdue count among underAuditLeads
+  const overdueAuditCount = useMemo(() => {
+    return underAuditLeads.filter(isAuditOverdue).length;
+  }, [underAuditLeads]);
 
   // Currently displayed leads based on tab and filters
   const displayedLeads = useMemo(() => {
@@ -273,22 +301,31 @@ export default function AuditedLeadsPage() {
           onClick={() => setActiveTab('under_audit')}
           className={`p-4 rounded-2xl border text-left transition-all active:scale-[0.99] flex items-center justify-between ${
             activeTab === 'under_audit'
-              ? 'bg-amber-950/40 border-amber-500/80 ring-1 ring-amber-500/50 shadow-xl shadow-amber-950/30'
+              ? (overdueAuditCount > 0 
+                  ? 'bg-rose-950/30 border-rose-500/80 ring-1 ring-rose-500/50 shadow-xl shadow-rose-950/30' 
+                  : 'bg-amber-950/40 border-amber-500/80 ring-1 ring-amber-500/50 shadow-xl shadow-amber-950/30')
               : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
           }`}
         >
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className={`w-2.5 h-2.5 rounded-full ${overdueAuditCount > 0 ? 'bg-rose-400' : 'bg-amber-400'} animate-pulse`} />
               <p className="text-sm font-black text-white">১. অডিট প্রক্রিয়াধীন (Under Audit Review)</p>
+              {overdueAuditCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-500 text-slate-950 font-black text-[10px] animate-pulse">
+                  🔴 {overdueAuditCount}টি ২ দিন পার
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              মেম্বারদের অডিটের জন্য এসাইন করা লিড। অডিট শেষ হলে <strong className="text-amber-300">"Audit Complete"</strong> মার্ক করুন।
+              {isTeamLeader 
+                ? 'টিমের মেম্বারদের অডিট করার জন্য এসাইন করা সমস্ত লিড।' 
+                : 'টিম লিডার আপনাকে অডিটের জন্য যে লিডগুলো নির্ধারণ করেছেন।'} অডিট শেষ হলে <strong className="text-amber-300">&quot;Audit Complete&quot;</strong> মার্ক করুন।
             </p>
           </div>
           <span className={`text-2xl font-black px-3.5 py-1.5 rounded-xl border ml-3 shrink-0 ${
             activeTab === 'under_audit'
-              ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+              ? (overdueAuditCount > 0 ? 'bg-rose-500 text-slate-950 border-rose-400 shadow-md' : 'bg-amber-500 text-slate-950 border-amber-400 shadow-md')
               : 'bg-slate-950 text-amber-400 border-slate-800'
           }`}>
             {underAuditLeads.length}
@@ -311,7 +348,9 @@ export default function AuditedLeadsPage() {
               <p className="text-sm font-black text-white">২. অডিট সম্পন্ন - রেডি ফর সেলস (Ready for Sales)</p>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              অডিট কমপ্লিট লিডসমূহ। টিম লিডার এখান থেকে মেম্বারকে ইমেইল/মেসেজ পাঠানোর জন্য নির্ধারণ করবেন।
+              {isTeamLeader 
+                ? 'মেম্বাররা অডিট কমপ্লিট করা সমস্ত লিড। টিম লিডার এখান থেকে মেম্বারকে ইমেইল/মেসেজ পাঠানোর জন্য নির্ধারণ করবেন।' 
+                : 'টিম লিডার যে লিডগুলো আপনাকে অডিটের জন্য দিয়েছিলেন তার মধ্যে আপনি যেগুলো অডিট কমপ্লিট করেছেন।'}
             </p>
           </div>
           <span className={`text-2xl font-black px-3.5 py-1.5 rounded-xl border ml-3 shrink-0 ${
@@ -323,6 +362,23 @@ export default function AuditedLeadsPage() {
           </span>
         </button>
       </div>
+
+      {/* OVERDUE AUDIT WARNING BANNER */}
+      {activeTab === 'under_audit' && overdueAuditCount > 0 && (
+        <div className="p-4 rounded-2xl bg-rose-950/80 border-2 border-rose-500 text-rose-200 text-xs font-bold shadow-xl flex items-center space-x-3 animate-in fade-in">
+          <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 animate-bounce" />
+          <div className="space-y-0.5">
+            <p className="font-black text-rose-100 text-sm">
+              🔴 {isTeamLeader 
+                ? `সতর্কতা: টিমের ${overdueAuditCount}টি লিডের অডিট ২ দিন পেরিয়ে গেছে কিন্তু এখনও অডিট সম্পন্ন হয়নি!` 
+                : `সতর্কতা: আপনার দায়িত্বে থাকা ${overdueAuditCount}টি লিডের অডিট ২ দিন পেরিয়ে গেছে! অবিলম্বে অডিট সম্পন্ন করুন, অন্যথায় আপনার পারফরম্যান্স ওয়ার্ক ইনকমপ্লিট হিসেবে চিহ্নিত থাকবে।`}
+            </p>
+            <p className="text-[11px] text-rose-300/90 font-medium">
+              যেসব লিড অডিটের জন্য পাঠানোর পর ২ দিন পেরিয়ে গেছে সেগুলোতে লাল সতর্কতা সংকেত (🔴) দেখানো হয়েছে। অডিট সম্পন্ন করে &quot;Audit Complete&quot; বাটনে ক্লিক করলেই রেডি ফর সেলস কিউতে চলে যাবে।
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 3. Filter Bar & Search Box */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
@@ -641,6 +697,8 @@ export default function AuditedLeadsPage() {
                 const waPitchMessage = `Hi, regarding your brand ${lead.company_name}: We noticed your ads are scaling and prepared a creative inject tear-sheet. Open to a 2-min review?`;
                 const waUrl = lead.phone ? getWhatsAppUrl(lead.phone, waPitchMessage) : '#';
 
+                const isOverdue = activeTab === 'under_audit' && isAuditOverdue(lead);
+
                 return (
                   <tr 
                     key={lead.id}
@@ -649,9 +707,13 @@ export default function AuditedLeadsPage() {
                         ? (isSelected 
                             ? 'bg-emerald-950/60 ring-2 ring-emerald-400 border-l-4 border-l-emerald-400 shadow-md shadow-emerald-950/40' 
                             : 'bg-emerald-950/20 hover:bg-emerald-950/40 border-l-4 border-l-emerald-500/80')
-                        : (isSelected 
-                            ? 'bg-amber-950/40 ring-2 ring-amber-400 border-l-4 border-l-amber-400' 
-                            : 'hover:bg-slate-900/50 border-l-4 border-l-transparent')
+                        : isOverdue
+                          ? (isSelected 
+                              ? 'bg-rose-950/70 ring-2 ring-rose-400 border-l-4 border-l-rose-500 shadow-lg shadow-rose-950/60' 
+                              : 'bg-rose-950/30 hover:bg-rose-950/50 border-l-4 border-l-rose-500')
+                          : (isSelected 
+                              ? 'bg-amber-950/40 ring-2 ring-amber-400 border-l-4 border-l-amber-400' 
+                              : 'hover:bg-slate-900/50 border-l-4 border-l-transparent')
                     }`}
                     onClick={() => handleToggleSelect(lead.id)}
                   >
@@ -729,18 +791,32 @@ export default function AuditedLeadsPage() {
                     {/* Assigned Auditor or Audited By */}
                     <td className="py-4 px-4 align-middle">
                       {activeTab === 'under_audit' ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-bold text-[10px] text-amber-300">
-                            {auditor?.full_name?.charAt(0) || 'A'}
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-bold text-[10px] ${
+                              isOverdue 
+                                ? 'bg-rose-500/20 border border-rose-500/60 text-rose-300' 
+                                : 'bg-amber-500/20 border border-amber-500/40 text-amber-300'
+                            }`}>
+                              {auditor?.full_name?.charAt(0) || 'A'}
+                            </div>
+                            <div>
+                              <span className={`font-bold block ${isOverdue ? 'text-rose-200' : 'text-amber-300'}`}>
+                                {auditor?.full_name || 'Assigned Auditor'}
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {lead.audit_assigned_at 
+                                  ? `Assigned: ${new Date(lead.audit_assigned_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` 
+                                  : '🔍 অডিট পর্যালোচনা চলছে'}
+                              </span>
+                            </div>
                           </div>
-                          <div>
-                            <span className="font-bold text-amber-300 block">
-                              {auditor?.full_name || 'Assigned Auditor'}
-                            </span>
-                            <span className="text-[10px] text-slate-500 font-mono">
-                              🔍 অডিট পর্যালোচনা চলছে
-                            </span>
-                          </div>
+
+                          {isOverdue && (
+                            <div className="px-2 py-0.5 rounded-md bg-rose-950/90 border border-rose-500 text-rose-300 text-[10px] font-black inline-flex items-center space-x-1 animate-pulse">
+                              <span>🔴 ২ দিন পেরিয়ে গেছে! অডিট সম্পন্ন হয়নি (পারফরম্যান্স ইনকমপ্লিট)</span>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="flex items-center space-x-2">
@@ -769,7 +845,11 @@ export default function AuditedLeadsPage() {
                             <button
                               type="button"
                               onClick={() => handleSinglePassAudit(lead.id)}
-                              className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/20 flex items-center space-x-1.5 transition-all active:scale-95"
+                              className={`px-3.5 py-1.5 rounded-xl font-black text-xs shadow-md flex items-center space-x-1.5 transition-all active:scale-95 ${
+                                isOverdue
+                                  ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-rose-500/30'
+                                  : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+                              }`}
                               title="অডিট সম্পন্ন করুন এবং রেডি ফর সেলস কিউতে পাঠান"
                             >
                               <Check className="w-3.5 h-3.5 stroke-[3]" />

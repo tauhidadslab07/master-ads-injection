@@ -74,7 +74,8 @@ export interface Lead {
   auditor?: TeamMember;
   
   // Approval Gate & Quality Audit
-  is_audit_sample: boolean;
+  is_audit_sample?: boolean;
+  audit_assigned_at?: string;
   audited_at?: string;
   audited_by?: string;
   audit_notes?: string;
