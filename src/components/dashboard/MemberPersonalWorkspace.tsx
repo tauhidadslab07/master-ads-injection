@@ -42,6 +42,7 @@ import {
   ThumbsDown,
   UserCheck
 } from 'lucide-react';
+import { LeaderMonitoringDashboard } from '@/components/dashboard/LeaderMonitoringDashboard';
 
 export function MemberPersonalWorkspace() {
   const { 
@@ -418,62 +419,30 @@ export function MemberPersonalWorkspace() {
         </div>
       )}
 
-      {/* 🔴 OVERDUE AUDITS ALERT BANNER: TEAM LEADER VIEW */}
-      {currentUser.role === 'team_leader' && allOverdueAudits.length > 0 && (
-        <div className="p-4 rounded-3xl bg-rose-950/80 border-2 border-rose-500/80 text-rose-100 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-center space-x-3">
-            <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0 animate-bounce" />
-            <div>
-              <p className="text-sm font-black text-white flex items-center space-x-2">
-                <span>🔴 টিম লিডার এলার্ট: টিমের {allOverdueAudits.length}টি লিডের অডিট ২ দিন পেরিয়ে গেছে!</span>
-              </p>
-              <p className="text-xs text-rose-300/90">
-                সংশ্লিষ্ট মেম্বারদের পারফরম্যান্স ইনকমপ্লিট হিসেবে চিহ্নিত হয়েছে এবং অডিট সেকশনে লাল সংকেত দিয়ে দেখানো হচ্ছে।
-              </p>
-            </div>
-          </div>
-
-          <Link
-            href="/audited-leads"
-            className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow-md shrink-0 flex items-center space-x-1"
-          >
-            <span>2. Audited Leads দেখুন →</span>
-          </Link>
-        </div>
+      {/* 👑 TEAM LEADER EXECUTIVE COMMAND & LIVE MONITORING SUITE */}
+      {currentUser.role === 'team_leader' && (
+        <LeaderMonitoringDashboard
+          inspectedMemberId={inspectedMemberId}
+          onInspectMember={(memberId) => setInspectedMemberId(memberId)}
+        />
       )}
 
-      {/* LEADER INSPECTION SELECTOR (Only shown if current logged in user is Leader) */}
-      {currentUser.role === 'team_leader' && (
-        <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/50 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center space-x-2">
-            <Crown className="w-4 h-4 text-amber-400" />
-            <span className="font-bold text-amber-200">টিম লিডার মোড:</span>
-            <span className="text-slate-300">যেকোনো মেম্বারের ব্যক্তিগত ড্যাশবোর্ড লাইভ পর্যবেক্ষণ করুন:</span>
+      {/* INSPECTION ACTIVE BANNER (When Leader is inspecting a member) */}
+      {currentUser.role === 'team_leader' && inspectedMemberId !== currentUser.id && (
+        <div className="p-3.5 rounded-2xl bg-cyan-950/90 border-2 border-cyan-400 text-white flex flex-wrap items-center justify-between gap-3 text-xs shadow-xl animate-in fade-in">
+          <div className="flex items-center space-x-2.5">
+            <Eye className="w-4 h-4 text-cyan-400 animate-pulse" />
+            <span>
+              আপনি বর্তমানে <strong className="text-cyan-300 font-black">{activeMember.full_name}</strong> (@{activeMember.username})-এর ব্যক্তিগত ড্যাশবোর্ড ও কিউ লাইভ পর্যবেক্ষণ করছেন।
+            </span>
           </div>
-
-          <div className="flex items-center space-x-2">
-            <select
-              value={inspectedMemberId}
-              onChange={(e) => setInspectedMemberId(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-slate-900 border border-amber-500/60 font-bold text-white text-xs focus:outline-none"
-            >
-              {teamMembers.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.role === 'team_leader' ? '👑' : '👤'} {m.full_name} ({m.role}) {m.id === currentUser.id ? '(My Workspace)' : ''}
-                </option>
-              ))}
-            </select>
-
-            {inspectedMemberId !== currentUser.id && (
-              <button
-                type="button"
-                onClick={() => setInspectedMemberId(currentUser.id)}
-                className="px-3 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs"
-              >
-                Reset to Me
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => setInspectedMemberId(currentUser.id)}
+            className="px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs shadow-md transition-all active:scale-95"
+          >
+            Reset to My Workspace
+          </button>
         </div>
       )}
 
